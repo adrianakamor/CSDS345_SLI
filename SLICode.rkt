@@ -1,8 +1,16 @@
 #lang racket
-
 ; require parser
 (require "simpleParser.rkt")
 
+
+; ------------------------------------------------------------
+; CSDS 345 - Simple Language Interpreter
+; Group 3: Noah Henriques, Stephen Hogeman, Adriana Kamor
+; ------------------------------------------------------------
+
+
+; Parser Functions
+; ------------------------------------------------------------
 ;reads the file and passes it to an evaluator
 (define read
   (lambda filename
@@ -21,7 +29,12 @@
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) ), which is the way
        ;that is "easier to implement later on"). 
        (eval-program (cdr syntax-tree states) (eval-statement (car syntax-tree) states))))))
+; ------------------------------------------------------------
 
+
+; Expression & Statement Evaluations
+; ------------------------------------------------------------
+; M_state Function
 ;reads through each statement and determines how it should be treated depending on the keywords
 ;I think I implemented this wrong
 (define eval-statement
@@ -39,14 +52,44 @@
       ((eq? (car statement) 'return) (return statement states))
       ;handling expressions will be tough; there should probably be something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
-      ;((eq? (car statement) 'if) (if statement states))
-      ;((eq? (car statement) 'while) (while statement states))
+      ((eq? (car expression) 'if)
+         (if-statement (eval_expressions (cadr expression) state)
+             (eval-program (caddr expression) state)
+             (eval-program (cadddr expression) state)))
+      ((eq? (car expression) 'while) (while (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
       (else
+       ; should we have an error here?
        (eval-statement (cdr statement))))))
 
+; M_value Function
+; currently just works with actual integer inputs, need to adjust to use defined variables
+  (define eval_expressions
+    (lambda (expression state)
+      (cond
+        ((eq? (car expression) '+)   (+ (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '-)   (- (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '*)   (* (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '/)   (quotient (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '%)   (remainder (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '==)  (eq? (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '!=)  (not (eq? (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state))))
+        ((eq? (car expression) '<)   (< (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '>)   (> (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '<=)  (<= (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '>=)  (>= (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '&&)  (and (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) '||)  (or (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ;((eq? (car expression) '!)   (not (eval_expresssions (cadr expression) state)))
+        ((number? expression)        expression)
+        ((boolean? expression)       expression)
+        ((symbol? expression)        (lookup expression state))
+        (else (error "Type Unknown")))))
+
+; ------------------------------------------------------------
 
 
-;-----------------------------------------------------
+; Helper Functions
+; ------------------------------------------------------------
 ;list of helper functions:
 ;function that updates the states given a variable and a value
 (define update-states
@@ -59,9 +102,11 @@
 	(if (null? lis1)
     	lis2
     	(cons (car lis1) (append(cdr lis1) lis2)))))
+; ------------------------------------------------------------
 
-;helper functions that I 100% absolutely definitely made
-;---------------------------------------------------------------------------------
+
+; Helper Functions (100% done)
+; ------------------------------------------------------------
 ;function + helper that takes the states and a given variable, and finds the index of that variable in the first part of states
 (define find-index
   (lambda (x lst)
@@ -90,11 +135,11 @@
     (if (= index 0)
         (car lst)
         (lookup-helper (- index 1) (cdr lst))))) 
-;---------------------------------------------------------------------------------
+; ------------------------------------------------------------
 
 
-
-
+; Syntax Tree Statements
+; ------------------------------------------------------------
 
 ;accepts the current statement (which will have a var in it) and the current list of states ((...)(...))
 ;will detect if there is an equals sign after this, in which case it will call the assign function
@@ -126,13 +171,13 @@
           ;assigns the vari a number after however many times it has to iterate through this statement
           (update-states vari (eval_expressions expression states) states))))
 
-
-
 ;looks up a variable's value in the state table
 (define lookup
   (lambda (vari states)
     (lookup-helper (find-index vari states) (cadr states))))
 
+; While Loop
+; ------------------------------------------------------------
 ; accepts the current statement as a while loop, and a current list of states
 ; checks to ensure that the loop condition is met before entering the loop
 ; if met, loops until loop condition is no longer met
@@ -144,6 +189,22 @@
         (while (condition body states)) ; Need to work on incrementing the condition, changing the state with the body, verifying that variables are withing the bounds of loop condition
         states)))
 
+; helper function for body of while loop
+; outline started
+(define while-body
+  (lambda (body states)
+    (lambda (statement stmt-state) (eval-statement stmt-state statement) states body)))
+
+; helper function for loop bounds
+; outline started
+(define while-condition
+  (lambda (condition states)
+    (eval_expressions states condition)))
+
+; ------------------------------------------------------------
+
+; If Statement
+; ------------------------------------------------------------
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 ; currently in progress
@@ -152,37 +213,5 @@
     (if (eval_expressions (cadr condition) states)
         (eval-program (caddr condition) states)
         (eval-program (car (cadddr condition) states)))))
-
-
-; other helper method for logic/math expressions
-; currently just works with actual integer inputs, need to adjust to use defined variables
-  (define eval_expressions
-    (lambda (expression state)
-      (cond
-        ((eq? (car expression) '+)   (+ (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '-)   (- (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '*)   (* (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '/)   (quotient (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '%)   (remainder (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '==)  (eq? (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '!=)  (not (eq? (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state))))
-        ((eq? (car expression) '<)   (< (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '>)   (> (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '<=)  (<= (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '>=)  (>= (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '&&)  (and (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((eq? (car expression) '||)  (or (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ;((eq? (car expression) '!)   (not (eval_expresssions (cadr expression) state)))
-        ((number? expression)        expression)
-        ((boolean? expression)       expression)
-        ((symbol? expression)        (lookup expression state))
-        ((eq? (car expression) 'if)
-         (if-statement (eval_expressions (cadr expression) state)
-             (eval-program (caddr expression) state)
-             (eval-program (cadddr expression) state)))
-        ((eq? (car expression) 'while) (while (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ; do we need these expressions listed below?
-        ; ((eq? (car expression) 'declare) (declare-var (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ; ((eq? (car expression) 'assign) (init-assign (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ; ((eq? (car expression) 'return) (return (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        )))
+; ------------------------------------------------------------
+; ------------------------------------------------------------
