@@ -24,7 +24,7 @@
       ;how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases.
       ;essentially, it will be treated the same as any other variable 'x' or 'y'
       ;at the end of the syntax tree, the return value will be called from the state list and outputted
-      ((null? syntax-tree) (lookup return states))
+      ((null? syntax-tree) (lookup 'return states))
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) ), which is the way
        ;that is "easier to implement later on"). 
@@ -47,19 +47,18 @@
       ((eq? (car statement) 'var) (declare-var statement states))
       ;this is because I am very lazy and instead of changing how my code handles where the "var" is I'm just gonna add a var onto the return statement to not worry about it
       ;sloppy programming I know
-      ((eq? (car statement) 'return) (declare-var (cons 'var statement) states))
-      ((eq? (car statement) '=) (init-assign statement states))
-      ((eq? (car statement) 'return) (return statement states))
+      ((eq? (cadr statement) '=) (init-assign (car statement) (cddr statement) states))
+      ((eq? (car statement) 'return) (init-assign (cddr statement) statement states))
       ;handling expressions will be tough; there should probably be something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
-      ((eq? (car expression) 'if)
-         (if-statement (eval_expressions (cadr expression) state)
-             (eval-program (caddr expression) state)
-             (eval-program (cadddr expression) state)))
-      ((eq? (car expression) 'while) (while (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+      ((eq? (car statement) 'if)
+         (if-statement (eval_expressions (cadr statement) states)
+             (eval-program (caddr statement) states)
+             (eval-program (cadddr statement) states)))
+      ((eq? (car statement) 'while) (while (eval_expressions (cadr statement) states) (eval_expressions (caddr statement) states)))
       (else
        ; should we have an error here?
-       (eval-statement (cdr statement))))))
+       (eval-statement (cdr statement) states)))))
 
 ; M_value Function
 ; currently just works with actual integer inputs, need to adjust to use defined variables
@@ -167,7 +166,7 @@
 (define init-assign
   (lambda (vari expression states)
     (if (null? (expression))
-         (display "Error in var statement!")
+         (error "Error in var statement!")
           ;assigns the vari a number after however many times it has to iterate through this statement
           (update-states vari (eval_expressions expression states) states))))
 
