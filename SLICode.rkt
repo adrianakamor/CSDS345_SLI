@@ -200,7 +200,6 @@
 (define while-condition
   (lambda (condition states)
     (eval_expressions states condition)))
-
 ; ------------------------------------------------------------
 
 ; If Statement
@@ -214,4 +213,5 @@
         (eval-program (caddr condition) states)
         (eval-program (car (cadddr condition) states)))))
 ; ------------------------------------------------------------
+
 ; ------------------------------------------------------------
