@@ -144,11 +144,15 @@
         (while (condition body states)) ; Need to work on incrementing the condition, changing the state with the body, verifying that variables are withing the bounds of loop condition
         states)))
 
-; interpret function
+; accepts the current statement as an if statement and a list of states
+; if the condition is met/is true, we perform the desired operation
+; currently in progress
+(define if-statement
+  (lambda (condition states)
+    (if (eval_expressions (cadr condition) states)
+        (eval-program (caddr condition) states)
+        (eval-program (car (cadddr condition) states)))))
 
-; binding pairs
-
-; state separation
 
 ; other helper method for logic/math expressions
 ; currently just works with actual integer inputs, need to adjust to use defined variables
@@ -171,4 +175,8 @@
         ;((eq? (car expression) '!)   (not (eval_expresssions (cadr expression) state)))
         ((number? expression)        expression)
         ((boolean? expression)       expression)
-        ((symbol? expression)        (lookup expression state)))))
+        ((symbol? expression)        (lookup expression state))
+        ((eq? (car expression) 'if)
+         (if (eval_expressions (cadr expression) state)
+             (eval-program (caddr expression) state)
+             (eval-program (cadddr expression) state))))))
