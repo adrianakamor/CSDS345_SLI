@@ -78,7 +78,7 @@
         ((eq? (car expression) '>=)  (>= (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '&&)  (and (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '||)  (or (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ;((eq? (car expression) '!)   (not (eval_expresssions (cadr expression) state)))
+        ((eq? (car expression) '!)   (not (eval_expressions (cadr expression) state)))
         ((number? expression)        expression)
         ((boolean? expression)       expression)
         ((symbol? expression)        (lookup expression state))
@@ -101,11 +101,7 @@
 	(if (null? lis1)
     	lis2
     	(cons (car lis1) (append(cdr lis1) lis2)))))
-; ------------------------------------------------------------
 
-
-; Helper Functions (100% done)
-; ------------------------------------------------------------
 ;function + helper that takes the states and a given variable, and finds the index of that variable in the first part of states
 (define find-index
   (lambda (x lst)
