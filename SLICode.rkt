@@ -164,6 +164,7 @@
     (if (null? (expression))
          (error "Error in var statement!")
           ;assigns the vari a number after however many times it has to iterate through this statement
+          ; handle state assignment here
           (update-states vari (eval_expressions expression states) states))))
 
 ;looks up a variable's value in the state table
