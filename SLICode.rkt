@@ -143,7 +143,7 @@
 ;returns the updated state with a new variable
 (define declare-var
   (lambda (statement states)
-    (cond ((null? (cadr statement)) (display "Error in var statement!"))
+    (cond ((null? (cadr statement)) (error "Error in var statement!"))
         (else
          ;checks if there's an equals sign/anything after the variable
          (if (not (null? (cddr statement)))
