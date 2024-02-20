@@ -6,19 +6,21 @@
 ;reads the file and passes it to an evaluator
 (define read
   (lambda filename
-    (eval-program (parser filename))))
+    ;the program is initialized with a return statement
+    (eval-program (parser filename) '((return) ('())))))
 
 ;parses the file into its syntax tree
 (define eval-program
   (lambda (syntax-tree states)
     (cond
-      ;return-function is a function that returns the 'return' value in the state list
-      ((null? syntax-tree) '());return-function(states))
-      ((eq? (car syntax-tree)'return) '());return_function)
+      ;how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases.
+      ;essentially, it will be treated the same as any other variable 'x' or 'y'
+      ;at the end of the syntax tree, the return value will be called from the state list and outputted
+      ((null? syntax-tree) (lookup return states))
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) ), which is the way
        ;that is "easier to implement later on"). 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
+       (eval-program (cdr syntax-tree states) (eval-statement (car syntax-tree) states))))))
 
 ;reads through each statement and determines how it should be treated depending on the keywords
 ;I think I implemented this wrong
@@ -29,12 +31,14 @@
       ;I'm not sure how to
       ((list? (car statement)) null)
       ;list of expressions that should call smaller functions
-
       ((eq? (car statement) 'var) (declare-var statement states))
+      ;this is because I am very lazy and instead of changing how my code handles where the "var" is I'm just gonna add a var onto the return statement to not worry about it
+      ;sloppy programming I know
+      ((eq? (car statement) 'return) (declare-var (cons 'var statement) states))
       ((eq? (car statement) '=) (init-assign statement states))
       ((eq? (car statement) 'return) (return statement states))
       ;handling expressions will be tough; there should probably be something that returns whether or not this is a statement
-      ;((eq? (car statement) is-expression(car statement)) (return statement states))
+      ;((eq? (car statement) eval-expression(car statement)) (return statement states))
       ;((eq? (car statement) 'if) (if statement states))
       ;((eq? (car statement) 'while) (while statement states))
       (else
@@ -72,12 +76,20 @@
 ;replacing the value there with the one given
 (define replacer
   (lambda (index value lst)
-  (list (car lst) (replace-at-index (cadr lst) index value))))
-(define replace-at-index
+  (list (car lst) (replacer-helper (cadr lst) index value))))
+(define replacer-helper
   (lambda (lst index value)
   (if (= index 0)
       (cons value (cdr lst))
-      (cons (car lst) (replace-at-index (cdr lst) (- index 1) value)))))
+      (cons (car lst) (replacer-helper (cdr lst) (- index 1) value)))))
+
+;helper that takes an index and iterates through the second part of the states until it lands on that index,
+;returning that value
+(define lookup-helper
+  (lambda (index lst)
+    (if (= index 0)
+        (car lst)
+        (lookup-helper (- index 1) (cdr lst))))) 
 ;---------------------------------------------------------------------------------
 
 
@@ -118,15 +130,8 @@
 
 ;looks up a variable's value in the state table
 (define lookup
-  (lambda (var states)
-    '()))
-
-;accepts the current statement (which will have a var in it) and the current list of states ((...)(...))
-;passes whatever is after the return to the expression function
-;returns an updated state for the return
-(define return
-  (lambda (return states)
-    '()))
+  (lambda (vari states)
+    (lookup-helper (find-index vari states) (cadr states))))
 
 ; accepts the current statement as a while loop, and a current list of states
 ; checks to ensure that the loop condition is met before entering the loop
