@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '((return) '()))))
+    (eval-program (parser filename) '((return) ()))))
 
 ;Parse Function
 ;parses the file into its syntax tree
@@ -29,7 +29,7 @@
       ((null? syntax-tree) (lookup 'return states))
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) 
-       (eval-program (cdr syntax-tree) states) (eval-statement (car syntax-tree) states)))))
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
 ; ------------------------------------------------------------
 
 
@@ -45,7 +45,7 @@
       ;list of expressions that should call smaller functions
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (init-assign (cddr statement) statement states))
+      ((eq? (car statement) 'return) (init-assign 'return statement states))
       ;give something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
       ((eq? (car statement) 'if)
@@ -143,11 +143,11 @@
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
         (else
          ;checks if there's an equals sign/anything after the variable
-         (if (not (null? (caddr statement)))
+         (if (not (null? (cddr statement)))
              ;all this does is calls the initializer/assigner to initialize this variable
-             (init-assign (cadr statement) (cadddr statement) (append (cons (cadr statement) (car states)) (cons '() (cadr states))))
+             (init-assign (cadr statement) (caddr statement) (append (cons (cadr statement) (car states)) (cons '() (cadr states))))
              ;if there's nothing after the equals sign, it returns the new list as normal
-             (append (cons (cadr statement) (car states)) (cons '() (cadr states))))))))
+             (cons (cons (cadr statement) (car states)) (cons '() (cadr states))))))))
             
         
 ;accepts the variable in question, an expression, and the current list of states ((...)(...))
