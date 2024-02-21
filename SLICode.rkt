@@ -14,7 +14,7 @@
 ; Interpret Function
 ;interprets the file and passes it to an evaluator
 (define interpret
-  (lambda filename
+  (lambda (filename)
     ;the program is initialized with a return statement
     (eval-program (parser filename) '((return) ('())))))
 
@@ -30,7 +30,7 @@
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) ), which is the way
        ;that is "easier to implement later on"). 
-       (eval-program (cdr syntax-tree states) (eval-statement (car syntax-tree) states))))))
+       (eval-program (cdr syntax-tree) states) (eval-statement (car syntax-tree) states)))))
 ; ------------------------------------------------------------
 
 
@@ -168,6 +168,9 @@
 (define lookup
   (lambda (vari states)
     (lookup-helper (find-index vari states) (cadr states))))
+
+; ------------------------------------------------------------
+
 
 ; While Loop
 ; ------------------------------------------------------------
