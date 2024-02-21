@@ -11,12 +11,14 @@
 
 ; Parser Functions
 ; ------------------------------------------------------------
-;reads the file and passes it to an evaluator
-(define read
+; Interpret Function
+;interprets the file and passes it to an evaluator
+(define interpret
   (lambda filename
     ;the program is initialized with a return statement
     (eval-program (parser filename) '((return) ('())))))
 
+;Parse Function
 ;parses the file into its syntax tree
 (define eval-program
   (lambda (syntax-tree states)
@@ -36,20 +38,16 @@
 ; ------------------------------------------------------------
 ; M_state Function
 ;reads through each statement and determines how it should be treated depending on the keywords
-;I think I implemented this wrong
 (define eval-statement
   (lambda (statement states)
     (cond
       ((null? statement) '())
-      ;I'm not sure how to
       ((list? (car statement)) null)
       ;list of expressions that should call smaller functions
       ((eq? (car statement) 'var) (declare-var statement states))
-      ;this is because I am very lazy and instead of changing how my code handles where the "var" is I'm just gonna add a var onto the return statement to not worry about it
-      ;sloppy programming I know
       ((eq? (cadr statement) '=) (init-assign (car statement) (cddr statement) states))
       ((eq? (car statement) 'return) (init-assign (cddr statement) statement states))
-      ;handling expressions will be tough; there should probably be something that returns whether or not this is a statement
+      ;give something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
       ((eq? (car statement) 'if)
          (if-statement (eval_expressions (cadr statement) states)
@@ -57,11 +55,9 @@
              (eval-program (cadddr statement) states)))
       ((eq? (car statement) 'while) (while (eval_expressions (cadr statement) states) (eval_expressions (caddr statement) states)))
       (else
-       ; should we have an error here?
        (eval-statement (cdr statement) states)))))
 
 ; M_value Function
-; currently just works with actual integer inputs, need to adjust to use defined variables
   (define eval_expressions
     (lambda (expression state)
       (cond
@@ -81,6 +77,8 @@
         ((eq? (car expression) '!)   (not (eval_expressions (cadr expression) state)))
         ((number? expression)        expression)
         ((boolean? expression)       expression)
+        ((eq? (car expression) 'true)(#t (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((eq? (car expression) 'false)(#f (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((symbol? expression)        (lookup expression state))
         (else (error "Type Unknown")))))
 
@@ -150,7 +148,6 @@
              ;all this does is calls the initializer/assigner to initialize this variable
              (init-assign (cadr statement) (cadddr statement) (append (cons (cadr statement) (car states)) (cons '() (cadr states))))
              ;if there's nothing after the equals sign, it returns the new list as normal
-             ;should really make a small function for this if I have time but I'm lazy
              (append (cons (cadr statement) (car states)) (cons '() (cadr states))))))))
             
         
@@ -178,36 +175,34 @@
 ; checks to ensure that the loop condition is met before entering the loop
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
-; I know this iteration isn't correct, but I wanted to get down general logic
 (define while
   (lambda (condition body states)
     (if (condition)
-        (while (condition body states)) ; Need to work on incrementing the condition, changing the state with the body, verifying that variables are withing the bounds of loop condition
+        (while condition(while-body body states))
         states)))
 
 ; helper function for body of while loop
-; outline started
 (define while-body
   (lambda (body states)
-    (lambda (statement stmt-state) (eval-statement stmt-state statement) states body)))
+    (if (null? body)
+        states
+        (while-body (cdr body) (eval-statement (car body) states)))))
 
 ; helper function for loop bounds
-; outline started
 (define while-condition
   (lambda (condition states)
-    (eval_expressions states condition)))
+    (eval_expressions condition states)))
 ; ------------------------------------------------------------
 
 ; If Statement
 ; ------------------------------------------------------------
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
-; currently in progress
 (define if-statement
-  (lambda (condition states)
-    (if (eval_expressions (cadr condition) states)
-        (eval-program (caddr condition) states)
-        (eval-program (car (cadddr condition) states)))))
+  (lambda (condition true-condition false-condition states)
+    (if (eval_expressions condition states)
+        (eval-program true-condition states)
+        (eval-program false-condition states))))
 ; ------------------------------------------------------------
 
 ; ------------------------------------------------------------
