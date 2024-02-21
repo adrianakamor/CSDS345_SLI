@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '((return) ('())))))
+    (eval-program (parser filename) '((return) '()))))
 
 ;Parse Function
 ;parses the file into its syntax tree
@@ -28,8 +28,7 @@
       ;at the end of the syntax tree, the return value will be called from the state list and outputted
       ((null? syntax-tree) (lookup 'return states))
       (else
-       ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) ), which is the way
-       ;that is "easier to implement later on"). 
+       ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) 
        (eval-program (cdr syntax-tree) states) (eval-statement (car syntax-tree) states)))))
 ; ------------------------------------------------------------
 
@@ -45,7 +44,7 @@
       ((list? (car statement)) null)
       ;list of expressions that should call smaller functions
       ((eq? (car statement) 'var) (declare-var statement states))
-      ((eq? (cadr statement) '=) (init-assign (car statement) (cddr statement) states))
+      ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (init-assign (cddr statement) statement states))
       ;give something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
@@ -75,10 +74,10 @@
         ((eq? (car expression) '&&)  (and (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '||)  (or (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '!)   (not (eval_expressions (cadr expression) state)))
-        ((number? expression)        expression)
-        ((boolean? expression)       expression)
         ((eq? (car expression) 'true)(#t (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) 'false)(#f (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
+        ((number? expression)        expression)
+        ((boolean? expression)       expression)
         ((symbol? expression)        (lookup expression state))
         (else (error "Type Unknown")))))
 
@@ -144,7 +143,7 @@
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
         (else
          ;checks if there's an equals sign/anything after the variable
-         (if (not (null? (cddr statement)))
+         (if (not (null? (caddr statement)))
              ;all this does is calls the initializer/assigner to initialize this variable
              (init-assign (cadr statement) (cadddr statement) (append (cons (cadr statement) (car states)) (cons '() (cadr states))))
              ;if there's nothing after the equals sign, it returns the new list as normal
@@ -158,7 +157,7 @@
 ;will return the updated state with an updated value for the var in question
 (define init-assign
   (lambda (vari expression states)
-    (if (null? (expression))
+    (if (null? expression)
          (error "Error in var statement!")
           ;assigns the vari a number after however many times it has to iterate through this statement
           ; handle state assignment here
@@ -180,21 +179,10 @@
 ; if not met, returns the current state
 (define while
   (lambda (condition body states)
-    (if (condition)
-        (while condition(while-body body states))
+    (if (eval_expressions condition states)
+        (while condition (eval-statement body states) states)
         states)))
 
-; helper function for body of while loop
-(define while-body
-  (lambda (body states)
-    (if (null? body)
-        states
-        (while-body (cdr body) (eval-statement (car body) states)))))
-
-; helper function for loop bounds
-(define while-condition
-  (lambda (condition states)
-    (eval_expressions condition states)))
 ; ------------------------------------------------------------
 
 ; If Statement
@@ -206,6 +194,4 @@
     (if (eval_expressions condition states)
         (eval-program true-condition states)
         (eval-program false-condition states))))
-; ------------------------------------------------------------
-
 ; ------------------------------------------------------------
