@@ -118,7 +118,7 @@
   (lambda (lst index value)
   (if (= index 0)
       (cons value (cdr lst))
-      (cons (car lst) (replacer-helper (cdr lst) (- index 1) value)))))
+      (cons (car lst) (cons (replacer-helper (cdr lst) (- index 1) value)'())))))
 
 ;helper that takes an index and iterates through the second part of the states until it lands on that index,
 ;returning that value
@@ -126,7 +126,13 @@
   (lambda (index lst)
     (if (= index 0)
         (car lst)
-        (lookup-helper (- index 1) (cdr lst))))) 
+        (lookup-helper (- index 1) (cdr lst)))))
+
+;inserts a variable and value into the state given the variable expression and the state
+(define create-pair
+  (lambda (y x value)
+  (cons (cons y (car x))
+        (cons (cons value (cadr x)) '()))))
 ; ------------------------------------------------------------
 
 
@@ -145,9 +151,9 @@
          ;checks if there's an equals sign/anything after the variable
          (if (not (null? (cddr statement)))
              ;all this does is calls the initializer/assigner to initialize this variable
-             (init-assign (cadr statement) (caddr statement) (append (cons (cadr statement) (car states)) (cons '() (cadr states))))
+             (init-assign (cadr statement) (caddr statement) (create-pair (cadr statement) states '()))
              ;if there's nothing after the equals sign, it returns the new list as normal
-             (cons (cons (cadr statement) (car states)) (cons '() (cadr states))))))))
+             (create-pair (cadr statement) states '()))))))
             
         
 ;accepts the variable in question, an expression, and the current list of states ((...)(...))
