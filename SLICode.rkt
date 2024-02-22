@@ -186,14 +186,8 @@
 (define while
   (lambda (condition body states)
     (if (eval_expressions condition states)
-        (while condition body (update-states (var-identify body) (eval-statement body states) states))
+        (while condition body (eval-statement body states))
         states)))
-
-(define var-identify
-  (lambda (body)
-    (if (eq? (car body) '=)
-        (cadr body)
-        body)))
 
 ; ------------------------------------------------------------
 
