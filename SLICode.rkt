@@ -26,7 +26,7 @@
       ;how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases.
       ;essentially, it will be treated the same as any other variable 'x' or 'y'
       ;at the end of the syntax tree, the return value will be called from the state list and outputted
-      ((null? syntax-tree) (car (lookup 'return states)))
+      ((null? syntax-tree) (lookup 'return states))
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
@@ -52,7 +52,7 @@
          (if-statement (eval_expressions (cadr statement) states)
              (eval-program (caddr statement) states)
              (eval-program (cadddr statement) states)))
-      ((eq? (car statement) 'while) (while (eval_expressions (cadr statement) states) (eval_expressions (caddr statement) states)))
+      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
       (else
        (eval-statement (cdr statement) states)))))
 
@@ -60,6 +60,9 @@
   (define eval_expressions
     (lambda (expression state)
       (cond
+        ((number? expression)        expression)
+        ((boolean? expression)       expression)
+        ((symbol? expression)        (lookup expression state))
         ((eq? (car expression) '+)   (+ (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '-)   (- (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) '*)   (* (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
@@ -76,9 +79,6 @@
         ((eq? (car expression) '!)   (not (eval_expressions (cadr expression) state)))
         ((eq? (car expression) 'true)(#t (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) 'false)(#f (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((number? (car expression))        (car expression))
-        ((boolean? (car expression))       (car expression))
-        ((symbol? (car expression))        (lookup (car expression) state))
         (else (error "Type Unknown")))))
 
 ; ------------------------------------------------------------
@@ -118,7 +118,7 @@
   (lambda (lst index value)
   (if (= index 0)
       (cons value (cdr lst))
-      (cons (car lst) (cons (replacer-helper (cdr lst) (- index 1) value)'())))))
+      (cons (car lst) (replacer-helper (cdr lst) (- index 1) value)))))
 
 ;helper that takes an index and iterates through the second part of the states until it lands on that index,
 ;returning that value
@@ -151,7 +151,7 @@
          ;checks if there's an equals sign/anything after the variable
          (if (not (null? (cddr statement)))
              ;all this does is calls the initializer/assigner to initialize this variable
-             (init-assign (cadr statement) (caddr statement) (create-pair (cadr statement) states '()))
+             (init-assign (cadr statement) (cddr statement) (create-pair (cadr statement) states '()))
              ;if there's nothing after the equals sign, it returns the new list as normal
              (create-pair (cadr statement) states '()))))))
             
@@ -167,7 +167,7 @@
          (error "Error in var statement!")
           ;assigns the vari a number after however many times it has to iterate through this statement
           ; handle state assignment here
-          (update-states vari (eval_expressions expression states) states))))
+          (update-states vari (eval_expressions (car expression) states) states))))
 
 ;looks up a variable's value in the state table
 (define lookup
@@ -186,8 +186,14 @@
 (define while
   (lambda (condition body states)
     (if (eval_expressions condition states)
-        (while condition (eval-statement body states) states)
+        (while condition body (update-states (var-identify body) (eval-statement body states) states))
         states)))
+
+(define var-identify
+  (lambda (body)
+    (if (eq? (car body) '=)
+        (cadr body)
+        body)))
 
 ; ------------------------------------------------------------
 
