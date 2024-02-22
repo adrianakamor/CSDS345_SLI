@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '((return) ()))))
+    (eval-program (parser filename) '((return) (())))))
 
 ;Parse Function
 ;parses the file into its syntax tree
@@ -26,7 +26,7 @@
       ;how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases.
       ;essentially, it will be treated the same as any other variable 'x' or 'y'
       ;at the end of the syntax tree, the return value will be called from the state list and outputted
-      ((null? syntax-tree) (lookup 'return states))
+      ((null? syntax-tree) (car (lookup 'return states)))
       (else
        ;Essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states (formatted as ((x y...)(5 7...)) 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
@@ -45,7 +45,7 @@
       ;list of expressions that should call smaller functions
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (init-assign 'return statement states))
+      ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ;give something that returns whether or not this is a statement
       ;((eq? (car statement) eval-expression(car statement)) (return statement states))
       ((eq? (car statement) 'if)
@@ -76,9 +76,9 @@
         ((eq? (car expression) '!)   (not (eval_expressions (cadr expression) state)))
         ((eq? (car expression) 'true)(#t (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
         ((eq? (car expression) 'false)(#f (eval_expressions (cadr expression) state) (eval_expressions (caddr expression) state)))
-        ((number? expression)        expression)
-        ((boolean? expression)       expression)
-        ((symbol? expression)        (lookup expression state))
+        ((number? (car expression))        (car expression))
+        ((boolean? (car expression))       (car expression))
+        ((symbol? (car expression))        (lookup (car expression) state))
         (else (error "Type Unknown")))))
 
 ; ------------------------------------------------------------
