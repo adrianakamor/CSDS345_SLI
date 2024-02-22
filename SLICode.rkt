@@ -47,11 +47,10 @@
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ;give something that returns whether or not this is a statement
-      ;((eq? (car statement) eval-expression(car statement)) (return statement states))
       ((eq? (car statement) 'if)
-         (if-statement (eval_expressions (cadr statement) states)
-             (eval-program (caddr statement) states)
-             (eval-program (cadddr statement) states)))
+            (if-statement (eval_expressions (cadr statement) states)
+                          (eval-statement (caddr statement) states)
+                          (eval-statement (cadddr statement) states) states))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
       (else
        (eval-statement (cdr statement) states)))))
@@ -198,6 +197,6 @@
 (define if-statement
   (lambda (condition true-condition false-condition states)
     (if (eval_expressions condition states)
-        (eval-program true-condition states)
-        (eval-program false-condition states))))
+        true-condition
+        false-condition)))
 ; ------------------------------------------------------------
