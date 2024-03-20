@@ -52,6 +52,11 @@
               (eval-statement (caddr statement) states k)
               (eval-statement (cadddr statement) states k) k))))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
+      ; I put a section for helpers below this section, but am not sure if we want to use
+      ; helpers or not for these.
+      ; ((eq? (car statement) 'break) (break-helper states k))
+      ; ((eq? (car statement) 'continue) (continue-helper states k))
+      ; ((eq? (car statement) 'throw) (throw-helper states k))
       (else
        (eval-statement (cdr statement) states k)))))
 
@@ -89,6 +94,19 @@
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
+
+; ------------------------------------------------------------
+
+; Assignment 2-specific Helper Functions
+; ------------------------------------------------------------
+;(define break-helper
+  ;(lambda (state k)))
+
+;(define continue-helper
+  ;(lambda (state k)))
+
+;(define throw-helper
+  ;(lambda (state k)))
 
 ; ------------------------------------------------------------
 
