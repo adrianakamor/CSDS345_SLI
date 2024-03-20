@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '((return) (())))))
+    (eval-program (parser filename) '(((return) (()))))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -31,6 +31,7 @@
       ((null? syntax-tree) (lookup 'return states))
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
+; Error here, eval-statement now takes three arguments, change?
 ; ------------------------------------------------------------
 
 
@@ -41,8 +42,9 @@
 (define eval-statement
   (lambda (statement states k)
     (cond
-      ((null? statement) (k '()))
+      ((null? statement) (k (cdr states)))
       ((list? (car statement)) (k null))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (layer states)))
       ((eq? (car statement) 'var) (declare-var statement states k))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states k))
       ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states k))
@@ -91,6 +93,7 @@
         ((eq? (operator expression) '!)   (not (eval_expressions (leftoperand expression) state)))
         (else (error "Type Unknown")))))
 
+; Helper methods for eval-expressions for abstraction
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
@@ -108,6 +111,8 @@
 ;(define throw-helper
   ;(lambda (state k)))
 
+; layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
+(define layer (lambda (state) (cons '(() ()) state)))
 ; ------------------------------------------------------------
 
 
@@ -227,3 +232,12 @@
         true-condition
         false-condition)))
 ; ------------------------------------------------------------
+
+
+; Assignment 2 - Syntax Tree Statements
+; ------------------------------------------------------------
+(define begin-block
+  (lambda (block states)
+    (eval-statement block states)))
+; Currently just a start, need to change many things with adding state, as well as the lookup function to be able to go through
+; multiple blocks
