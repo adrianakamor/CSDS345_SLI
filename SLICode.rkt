@@ -39,20 +39,21 @@
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
-  (lambda (statement states)
+  (lambda (statement states k)
     (cond
-      ((null? statement) '())
-      ((list? (car statement)) null)
-      ((eq? (car statement) 'var) (declare-var statement states))
-      ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
+      ((null? statement) (k '()))
+      ((list? (car statement)) (k null))
+      ((eq? (car statement) 'var) (declare-var statement states k))
+      ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states k))
+      ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states k))
       ((eq? (car statement) 'if)
-            (if-statement (eval_expressions (cadr statement) states)
-                          (eval-statement (caddr statement) states)
-                          (eval-statement (cadddr statement) states) states))
-      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
+        (eval_expressions (cadr statement) states (lambda (v)
+            (if-statement v
+              (eval-statement (caddr statement) states k)
+              (eval-statement (cadddr statement) states k) k))))
+      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
       (else
-       (eval-statement (cdr statement) states)))))
+       (eval-statement (cdr statement) states k)))))
 
 ; M_value Function
 ; eval_expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
