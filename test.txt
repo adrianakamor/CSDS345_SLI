@@ -1,1 +1,5 @@
-return 6 * -(4 * 2) + 9;
+var x = 10;
+{
+  var y = 2;
+}
+return x;
