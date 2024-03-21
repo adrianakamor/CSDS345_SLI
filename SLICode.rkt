@@ -72,7 +72,7 @@
         ((eq? expression 'true)  #t)
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
-        ((symbol? expression)        (lookup-var expression state))
+        ((symbol? expression)        (lookup-var expression state 0 0))
         ((eq? (operator expression) '+)   (+ (eval_expressions (leftoperand expression) state) (eval_expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
@@ -147,15 +147,15 @@
 ; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
 (define lookup-var
   (lambda (var state layer index)
-    (if (eq? -1 (state-find (var state 0)))
+    (if (eq? -1 (state-find var state 0))
         (error "Variable requested not found in the state!")
-        (lookup-var-helper state (state-find (var state 0))))))
+        (lookup-var-helper state (state-find var state 0)))))
 
 ; lookup-var-helper traverses through the layers of the state, and stops when 0
 (define lookup-var-helper
   (lambda (state layer-pair)
     (cond
-      ((eq? 0 (car layer-pair)) (lookup-layer (cdar state) (cdr layer-pair)))
+      ((eq? 0 (car layer-pair)) (lookup-layer (cdar state) (cadr layer-pair)))
       (else (lookup-var-helper (cdr state) (cons (- 1 (car layer-pair)) (cdr layer-pair)))))))
 (define lookup-layer
   (lambda (lst index)
@@ -197,7 +197,7 @@
         ((eq? value #t) (cons 'true (cdr lst)))
         ((eq? value #f) (cons 'false (cdr lst)))
         (else (cons value (cdr lst))))
-      (cons (car lst) (replacer-helper (cdr lst) (- index 1) value)))))
+      (cons (car lst) (replacer-layer (cdr lst) (- index 1) value)))))
 
 
 ; ------------------------------------------------------------
