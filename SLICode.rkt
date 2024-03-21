@@ -54,11 +54,10 @@
               (eval-statement (caddr statement) states)
               (eval-statement (cadddr statement) states)))))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
-      ; I put a section for helpers below this section, but am not sure if we want to use
-      ; helpers or not for these. 
-      ; ((eq? (car statement) 'break) (break-helper states k))
-      ; ((eq? (car statement) 'continue) (continue-helper states k))
-      ; ((eq? (car statement) 'throw) (throw-helper states k))
+      ((eq? (car statement) 'break) (break-helper states k))
+      ((eq? (car statement) 'continue) (continue-helper states k))
+      ((eq? (car statement) 'throw) (throw-helper states k))
+      ((eq? (car statement) 'try) (try-helper states k))
       (else
        (eval-statement (cdr statement) states)))))
 
@@ -102,14 +101,44 @@
 
 ; Assignment 2-specific Helper Functions
 ; ------------------------------------------------------------
-;(define break-helper
-  ;(lambda (state k)))
 
-;(define continue-helper
-  ;(lambda (state k)))
+; helper for break in eval-statements for CPS and taking in break state
+(define break-helper
+  (lambda (state k)
+    (k 'break state)))
 
-;(define throw-helper
-  ;(lambda (state k)))
+; helper for continue in eval-statements for CPS and taking in continue state
+(define continue-helper
+  (lambda (state k)
+    (k 'continue state)))
+
+; helper for throw in eval-statements for CPS and taking in error state plus error
+(define throw-helper
+  (lambda (error state k)
+    (error "Throw Error")))
+
+; helper for try in eval statements using CPS and referencing catch and finally
+(define try-helper
+  (lambda (tblock cblock fblock state k)
+    (eval-statement tblock state
+      (lambda (v1 v2)
+        (if (eq? v1 'throw)
+          (catch-helper cblock v2 fblock k)
+          (finally-helper fblock v2 (lambda (v3 v4) (k v3 v4))))))))
+
+; helper to process catch from try-helper using CPS
+(define catch-helper
+  (lambda (cblock state fblock k)
+    (eval-statement cblock state
+      (lambda (v1 v2)
+        (finally-helper fblock state (lambda (v3 v4) (k v3 v4)))))))
+
+; helper to process finally from try-helper using CPS
+(define finally-helper
+  (lambda (fblock state k)
+    (if (null? fblock)
+      (k '() state)
+      (eval-statement fblock state k))))
 
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
 (define new-layer (lambda (state) (cons '(() ()) state)))
