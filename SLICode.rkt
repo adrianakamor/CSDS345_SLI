@@ -28,7 +28,7 @@
 (define eval-program
   (lambda (syntax-tree states)
     (cond
-      ((null? syntax-tree) (lookup 'return states))
+      ((null? syntax-tree) (lookup-var 'return states))
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
 ; Error here, eval-statement now takes three arguments, change?
@@ -54,10 +54,10 @@
               (eval-statement (caddr statement) states)
               (eval-statement (cadddr statement) states)))))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
-      ((eq? (car statement) 'break) (break-helper states k))
-      ((eq? (car statement) 'continue) (continue-helper states k))
-      ((eq? (car statement) 'throw) (throw-helper states k))
-      ((eq? (car statement) 'try) (try-helper states k))
+      ((eq? (car statement) 'break) (break-helper states)) ; Temporarily removed k's to get it to run
+      ((eq? (car statement) 'continue) (continue-helper states))
+      ((eq? (car statement) 'throw) (throw-helper states))
+      ((eq? (car statement) 'try) (try-helper states))
       (else
        (eval-statement (cdr statement) states)))))
 
@@ -72,7 +72,7 @@
         ((eq? expression 'true)  #t)
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
-        ((symbol? expression)        (lookup expression state))
+        ((symbol? expression)        (lookup-var expression state))
         ((eq? (operator expression) '+)   (+ (eval_expressions (leftoperand expression) state) (eval_expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
@@ -143,28 +143,61 @@
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
 (define new-layer (lambda (state) (cons '(() ()) state)))
 
-; The general logic for traversing through the layers is to:
-;  A. Check the current layer to see if the desired value is there
-;  B. If there is the desired value, return both the layer number and index number of value?
-;  C. If not, go through next layer, incrementing counter of layer.
-; lookup-state: 
-(define lookup-state
+; lookup-var: Looking up the layer and index of the desired variable
+; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
+(define lookup-var
   (lambda (var state layer index)
-    (if (eq? -1 (lookup-layer (var (caar state) 0)))
-        (cons (car state) (lookup-state var (cdr state) (+ 1 layer) index))
-        layer)))
+    (if (eq? -1 (state-find (var state 0)))
+        (error "Variable requested not found in the state!")
+        (lookup-var-helper state (state-find (var state 0))))))
 
-; lookup-layer:
+; lookup-var-helper traverses through the layers of the state, and stops when 0
+(define lookup-var-helper
+  (lambda (state layer-pair)
+    (cond
+      ((eq? 0 (car layer-pair)) (lookup-layer (cdar state) (cdr layer-pair)))
+      (else (lookup-var-helper (cdr state) (cons (- 1 (car layer-pair)) (cdr layer-pair)))))))
 (define lookup-layer
-  (lambda (var layer-state layer)
-    (if (null? layer-state)
-        -1
-        0)))
-        
+  (lambda (lst index)
+    (if (zero? index)
+        (car lst)
+        (lookup-layer (cdr lst) (- 1 index)))))
 
-; replacer-layer:
+; state-find: Looking up the layer and the index in said layer for the desired variable
+(define state-find
+  (lambda (var state layer)
+    (cond
+      ((null? state) -1)
+      ((eq? -1 (layer-find var (caar state))) (state-find var (cdr state) (+ 1 layer)))
+      (else (cons layer (cons (layer-find var (caar state)) '()))))))
+; layer-find: function + helper that takes the states and a given variable, and finds the index of that variable in the first part of states
+; Returns -1 if the variable requested is not found in the current layer of state
+(define layer-find
+  (lambda (x lst)
+  (loop lst x 0)))
+(define loop
+  (lambda (lst x index)
+  (cond
+    ((null? lst) -1)
+    ((eq? (car lst) x) index)
+    (else (loop (cdr lst) x (+ index 1))))))
 
 ; replacer-state:
+(define replacer-state
+  (lambda (layer-pair val state)
+    (if (zero? (car layer-pair))
+        (cons (cons (caar state) (replacer-layer (cadr layer-pair) val (cdar state))) (cdr state))
+        (cons (car state) (replacer-state (cons (- 1 (car layer-pair)) (cdr layer-pair)) val (cdr state))))))
+
+; replacer-layer:
+(define replacer-layer
+  (lambda (index value lst)
+  (if (= index 0)
+      (cond
+        ((eq? value #t) (cons 'true (cdr lst)))
+        ((eq? value #f) (cons 'false (cdr lst)))
+        (else (cons value (cdr lst))))
+      (cons (car lst) (replacer-helper (cdr lst) (- index 1) value)))))
 
 
 ; ------------------------------------------------------------
@@ -173,21 +206,10 @@
 ; Helper Functions
 ; ------------------------------------------------------------
 
-; update-states: function that updates the states given a variable and a value
+; update-layers: function that updates the states given a variable and a value
 (define update-states
   (lambda (vari val states)
-    (replacer (find-index vari (list (car states))) val states)))
-
-;find-index: function + helper that takes the states and a given variable, and finds the index of that variable in the first part of states
-; Needs to be greatly modified or discarded for part 2, as this won't be helpful since we have multiple layers
-(define find-index
-  (lambda (x lst)
-  (loop (car lst) x 0)))
-(define loop
-  (lambda (lst x index)
-  (cond
-    ((eq? (car lst) x) index)
-    (else (loop (cdr lst) x (+ index 1))))))
+    (replacer-state (state-find vari states 0) val states)))
 
 ; replacer: function + helper that takes an index and iterates through the second part of the states until it lands on that index,
 ; replacing the value there with the one given
@@ -205,6 +227,7 @@
 
 ; lookup-helper: helper that takes an index and iterates through the second part of the states until it lands on that index,
 ; returning that value
+; Will be changed for the second part of the project
 (define lookup-helper
   (lambda (index lst)
     (if (= index 0)
@@ -213,9 +236,9 @@
 
 ; create-pair: inserts a variable and value into the state given the variable expression and the state
 (define create-pair
-  (lambda (var state value)
-  (cons (cons var (caar state))
-        (cons (cons value (caadr state)) '()))))
+  (lambda (y x value)
+  (cons (cons y (car x))
+        (cons (cons value (cadr x)) '()))))
 
 ; ------------------------------------------------------------
 
@@ -234,7 +257,7 @@
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
         (else
          (if (not (null? (cddr statement)))
-             (init-assign (cadr statement) (cddr statement) (create-pair (cadr statement) states '()))
+             (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)))
              (create-pair (cadr statement) states '()))))))
 ; By changing it such that a pair is only created in the first layer of the state, then this should prevent variables being declared outside of their
 ; scope. 
@@ -250,10 +273,11 @@
          (error "Error in var statement!")
           (update-states vari (eval_expressions (car expression) states) states))))
 
+; Maybe deprecated method
 ; lookup: looks up a variable's value in the state table
-(define lookup
-  (lambda (vari states)
-    (lookup-helper (find-index vari states) (cadr states))))
+;(define lookup
+ ; (lambda (vari states)
+  ;  (lookup-helper (find-index vari states) (cadr states))))
 
 ; ------------------------------------------------------------
 
