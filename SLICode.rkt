@@ -186,7 +186,7 @@
 (define replacer-state
   (lambda (layer-pair val state)
     (if (zero? (car layer-pair))
-        (cons (cons (caar state) (replacer-layer (cadr layer-pair) val (cdar state))) (cdr state))
+        (cons (cons (caar state) (list (replacer-layer (cadr layer-pair) val (cadar state)))) (cdr state))
         (cons (car state) (replacer-state (cons (- 1 (car layer-pair)) (cdr layer-pair)) val (cdr state))))))
 
 ; replacer-layer:
@@ -205,6 +205,13 @@
 
 ; Helper Functions
 ; ------------------------------------------------------------
+
+; append: Implementation of the append function from class
+(define append
+  (lambda (lis1 lis2)
+	(if (null? lis1)
+    	lis2
+    	(cons (car lis1) (append(cdr lis1) lis2)))))
 
 ; update-layers: function that updates the states given a variable and a value
 (define update-states
