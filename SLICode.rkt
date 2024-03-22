@@ -65,12 +65,12 @@
 (define eval-expressions
   (lambda (expression state k)
     (cond
-      ((number? expression)        k expression)
-      ((boolean? expression)       k expression)
-      ((eq? expression #t)     k #t)
-      ((eq? expression 'true)  k #t)
-      ((eq? expression #f)     k #f)
-      ((eq? expression 'false) k #f)
+      ((number? expression)        (k expression))
+      ((boolean? expression)       (k expression))
+      ((eq? expression #t)     (k #t))
+      ((eq? expression 'true)  (k #t))
+      ((eq? expression #f)     (k #f))
+      ((eq? expression 'false) (k #f))
       ((symbol? expression)        (lookup-var expression state 0 0))
       ((eq? (operator expression) '+)   
        (eval-expressions (leftoperand expression) state
