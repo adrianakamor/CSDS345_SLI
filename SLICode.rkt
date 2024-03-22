@@ -28,9 +28,9 @@
 (define eval-program
   (lambda (syntax-tree states)
     (cond
-      ((null? syntax-tree) (lookup-var 'return states))
+      ((null? syntax-tree) (lookup-var 'return states 0 0))
       (else 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states))))))
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states (lambda (v) v)))))))
 ; Error here, eval-statement now takes three arguments, change?
 ; ------------------------------------------------------------
 
@@ -62,6 +62,7 @@
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
+; Bugs here in that only the first value of any expression is returned opposed to the result of the expression
 (define eval-expressions
   (lambda (expression state k)
     (cond
@@ -93,7 +94,7 @@
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (k (* left-result right-result)))))))
+                                                    (k (* left-result right-result)))))))
     ((eq? (operator expression) '/)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
@@ -227,13 +228,13 @@
 (define lookup-var-helper
   (lambda (state layer-pair)
     (cond
-      ((eq? 0 (car layer-pair)) (lookup-layer (cdar state) (cadr layer-pair)))
+      ((eq? 0 (car layer-pair)) (lookup-layer (cadar state) (cadr layer-pair)))
       (else (lookup-var-helper (cdr state) (cons (- 1 (car layer-pair)) (cdr layer-pair)))))))
 (define lookup-layer
   (lambda (lst index)
     (if (zero? index)
         (car lst)
-        (lookup-layer (cdr lst) (- 1 index)))))
+        (lookup-layer (cdr lst) (- index 1)))))
 
 ; state-find: Looking up the layer and the index in said layer for the desired variable
 (define state-find
@@ -258,18 +259,18 @@
 (define replacer-state
   (lambda (layer-pair val state)
     (if (zero? (car layer-pair))
-        (cons (cons (caar state) (list (replacer-layer (cadr layer-pair) val (cadar state)))) (cdr state))
+        (cons (cons (caar state) (list (replacer-layer state (cadr layer-pair) val (cadar state)))) (cdr state))
         (cons (car state) (replacer-state (cons (- 1 (car layer-pair)) (cdr layer-pair)) val (cdr state))))))
 
 ; replacer-layer:
 (define replacer-layer
-  (lambda (index value lst)
+  (lambda (state index value lst)
     (if (= index 0)
         (cond
-          ((eq? value #t) (cons 'true (cdr lst)))
-          ((eq? value #f) (cons 'false (cdr lst)))
-          (else (cons value (cdr lst))))
-      (cons (car lst) (replacer-layer (cdr lst) (- index 1) value))))) ; should this be (- index 1) value (cdr lst) or am I being silly
+          ((eq? (eval-expressions value state (lambda (v) v))  #t) (cons 'true (cdr lst)))
+          ((eq? (eval-expressions value state (lambda (v) v))  #f) (cons 'false (cdr lst)))
+          (else (cons (eval-expressions value state (lambda (v) v)) (cdr lst))))
+      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst)))))) ; should this be (- index 1) value (cdr lst) or am I being silly
 
 
 ; ------------------------------------------------------------
@@ -315,8 +316,6 @@
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)))
                (create-pair (cadr statement) states '()))))))
-; By changing it such that a pair is only created in the first layer of the state, then this should prevent variables being declared outside of their
-; scope. 
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
 ;checks to make sure that the variable has been declared; if not (idk what it'll do lol)
@@ -327,7 +326,8 @@
   (lambda (vari expression states)
     (if (null? expression)
         (error "Error in var statement!")
-        (update-states vari (eval-expressions (car expression) states) states))))
+        (update-states vari (eval-expressions (car expression) states (lambda (v) v)) states))))
+;Maybe an error with this continuation?
 
 ; ------------------------------------------------------------
 
@@ -340,7 +340,7 @@
 ; if not met, returns the current state
 (define while
   (lambda (condition body states k)
-          (if (eval-expressions condition states)
+          (if (eval-expressions condition states k)
               (eval-statement body states (lambda (new-states)
                 (while condition body new-states k)))
             (k states))))
@@ -367,4 +367,4 @@
   (lambda (block states k)
     (if (null? block)
         (cdr states)
-        (begin-block (cdr block) (eval-statement (car block) states k)))))
+        (begin-block (cdr block) (eval-statement (car block) states k) k))))
