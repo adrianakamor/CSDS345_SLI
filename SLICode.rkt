@@ -73,93 +73,93 @@
       ((eq? expression 'false) #f)
       ((symbol? expression)        (lookup-var expression state 0 0))
       ((eq? (operator expression) '+)   
-       (eval-expressions-cps (leftoperand expression) state
+       (eval-expressions (leftoperand expression) state
                              (lambda (left-result)
-                               (eval-expressions-cps (rightoperand expression) state
+                               (eval-expressions (rightoperand expression) state
                                                      (lambda (right-result)
-                                                       (cont (+ left-result right-result))))))))
+                                                       (cont (+ left-result right-result)))))))
     ((eq? (operator expression) '-')
      (if (null? (cddr expression))
-         (eval-expressions-cps (leftoperand expression) state
+         (eval-expressions (leftoperand expression) state
                                (lambda (result)
                                  (cont (- result))))
-         (eval-expressions-cps (leftoperand expression) state
+         (eval-expressions (leftoperand expression) state
                                (lambda (left-result)
-                                 (eval-expressions-cps (rightoperand expression) state
+                                 (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
                                                          (cont (- left-result right-result))))))))
     ((eq? (operator expression) '*)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (* left-result right-result)))))))
     ((eq? (operator expression) '/')
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (quotient left-result right-result)))))))
     ((eq? (operator expression) '%)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (remainder left-result right-result)))))))
     ((eq? (operator expression) '==)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (eq? left-result right-result)))))))
     ((eq? (operator expression) '!=)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (not (eq? left-result right-result))))))))
     ((eq? (operator expression) '<)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (< left-result right-result)))))))
     ((eq? (operator expression) '>)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (> left-result right-result)))))))
     ((eq? (operator expression) '<=)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (<= left-result right-result)))))))
     ((eq? (operator expression) '>=)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
-                             (eval-expressions-cps (rightoperand expression) state
+                             (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (cont (>= left-result right-result)))))))
     ((eq? (operator expression) '&&)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (if (not left-result)
                                  (cont #f) 
-                                 (eval-expressions-cps (rightoperand expression) state
+                                 (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
                                                          (cont (and left-result right-result))))))))
     ((eq? (operator expression) '||)
-     (eval-expressions-cps (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (if left-result
                                  (cont #t) 
-                                 (eval-expressions-cps (rightoperand expression) state
+                                 (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
                                                          (cont (or left-result right-result))))))))
     ((eq? (operator expression) '!)
-     (eval-expressions-cps (leftoperand expression) state
+     (lis (leftoperand expression) state
                            (lambda (result)
                              (cont (not result)))))
     (else (error "Type Unknown")))))
