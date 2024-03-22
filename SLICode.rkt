@@ -49,7 +49,7 @@
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ((eq? (car statement) 'if)
-       (if-statement (eval_expressions (cadr statement) states)
+       (if-statement (eval-expressions (cadr statement) states k)
                      (eval-statement (caddr statement) states k)
                      (eval-statement (cadddr statement) states k)))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
@@ -61,107 +61,107 @@
        (eval-statement (cdr statement) states)))))
 
 ; M_value Function
-; eval_expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
-(define eval_expressions
+; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
+(define eval-expressions
   (lambda (expression state k)
     (cond
-      ((number? expression)        expression)
-      ((boolean? expression)       expression)
-      ((eq? expression #t)     #t)
-      ((eq? expression 'true)  #t)
-      ((eq? expression #f)     #f)
-      ((eq? expression 'false) #f)
+      ((number? expression)        k expression)
+      ((boolean? expression)       k expression)
+      ((eq? expression #t)     k #t)
+      ((eq? expression 'true)  k #t)
+      ((eq? expression #f)     k #f)
+      ((eq? expression 'false) k #f)
       ((symbol? expression)        (lookup-var expression state 0 0))
       ((eq? (operator expression) '+)   
        (eval-expressions (leftoperand expression) state
                              (lambda (left-result)
                                (eval-expressions (rightoperand expression) state
                                                      (lambda (right-result)
-                                                       (cont (+ left-result right-result)))))))
+                                                       (k (+ left-result right-result)))))))
     ((eq? (operator expression) '-')
      (if (null? (cddr expression))
          (eval-expressions (leftoperand expression) state
                                (lambda (result)
-                                 (cont (- result))))
+                                 (k (- result))))
          (eval-expressions (leftoperand expression) state
                                (lambda (left-result)
                                  (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
-                                                         (cont (- left-result right-result))))))))
+                                                         (k (- left-result right-result))))))))
     ((eq? (operator expression) '*)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (* left-result right-result)))))))
+                                                     (k (* left-result right-result)))))))
     ((eq? (operator expression) '/')
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (quotient left-result right-result)))))))
+                                                     (k (quotient left-result right-result)))))))
     ((eq? (operator expression) '%)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (remainder left-result right-result)))))))
+                                                     (k (remainder left-result right-result)))))))
     ((eq? (operator expression) '==)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (eq? left-result right-result)))))))
+                                                     (k (eq? left-result right-result)))))))
     ((eq? (operator expression) '!=)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (not (eq? left-result right-result))))))))
+                                                     (k (not (eq? left-result right-result))))))))
     ((eq? (operator expression) '<)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (< left-result right-result)))))))
+                                                     (k (< left-result right-result)))))))
     ((eq? (operator expression) '>)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (> left-result right-result)))))))
+                                                     (k (> left-result right-result)))))))
     ((eq? (operator expression) '<=)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (<= left-result right-result)))))))
+                                                     (k (<= left-result right-result)))))))
     ((eq? (operator expression) '>=)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
-                                                     (cont (>= left-result right-result)))))))
+                                                     (k (>= left-result right-result)))))))
     ((eq? (operator expression) '&&)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (if (not left-result)
-                                 (cont #f) 
+                                 (k #f) 
                                  (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
-                                                         (cont (and left-result right-result))))))))
+                                                         (k (and left-result right-result))))))))
     ((eq? (operator expression) '||)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (if left-result
-                                 (cont #t) 
+                                 (k #t) 
                                  (eval-expressions (rightoperand expression) state
                                                        (lambda (right-result)
-                                                         (cont (or left-result right-result))))))))
+                                                         (k (or left-result right-result))))))))
     ((eq? (operator expression) '!)
-     (lis (leftoperand expression) state
+     (eval-expressions (leftoperand expression) state
                            (lambda (result)
-                             (cont (not result)))))
+                             (k (not result)))))
     (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -350,7 +350,7 @@
   (lambda (vari expression states)
     (if (null? expression)
         (error "Error in var statement!")
-        (update-states vari (eval_expressions (car expression) states) states))))
+        (update-states vari (eval-expressions (car expression) states) states))))
 
 ; Maybe deprecated method
 ; lookup: looks up a variable's value in the state table
@@ -368,11 +368,11 @@
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
 (define while
-  (lambda (condition body states cont)
-          (if eval_expressions condition states
+  (lambda (condition body states k)
+          (if eval-expressions condition states
               (eval-statement body states (lambda (new-states)
-                (while condition body new-states cont))) ; Recursive call in tail position with the continuation
-            (cont states))))
+                (while condition body new-states k))) ; Recursive call in tail position with the continuation
+            (k states))))
 
 ; ------------------------------------------------------------
 
@@ -382,7 +382,7 @@
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
   (lambda (condition true-condition false-condition states k)
-    (if (eval_expressions condition states k)
+    (if (eval-expressions condition states k)
         true-condition
         false-condition)))
 ; ------------------------------------------------------------
