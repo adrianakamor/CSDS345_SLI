@@ -53,7 +53,7 @@
                      (eval-statement (caddr statement) states k)
                      (eval-statement (cadddr statement) states k)))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
-      ((eq? (car statement) 'break) (break-helper states)) ; Temporarily removed k's to get it to run
+      ((eq? (car statement) 'break) (break-helper states))
       ((eq? (car statement) 'continue) (continue-helper states))
       ((eq? (car statement) 'throw) (throw-helper states))
       ((eq? (car statement) 'try) (try-helper states))
@@ -78,7 +78,7 @@
                                (eval-expressions (rightoperand expression) state
                                                      (lambda (right-result)
                                                        (k (+ left-result right-result)))))))
-    ((eq? (operator expression) '-')
+    ((eq? (operator expression) '-)
      (if (null? (cddr expression))
          (eval-expressions (leftoperand expression) state
                                (lambda (result)
@@ -94,7 +94,7 @@
                              (eval-expressions (rightoperand expression) state
                                                    (lambda (right-result)
                                                      (k (* left-result right-result)))))))
-    ((eq? (operator expression) '/')
+    ((eq? (operator expression) '/)
      (eval-expressions (leftoperand expression) state
                            (lambda (left-result)
                              (eval-expressions (rightoperand expression) state
@@ -275,7 +275,7 @@
 ; ------------------------------------------------------------
 
 
-; Helper Functions
+; Assignment 1 Specific Helper Functions
 ; ------------------------------------------------------------
 
 ; append: Implementation of the append function from class
@@ -289,29 +289,6 @@
 (define update-states
   (lambda (vari val states)
     (replacer-state (state-find vari states 0) val states)))
-
-; replacer: function + helper that takes an index and iterates through the second part of the states until it lands on that index,
-; replacing the value there with the one given
-(define replacer
-  (lambda (layer index value lst)
-    (list (car lst) (replacer-helper (cadr lst) layer index value))))
-(define replacer-helper
-  (lambda (state layer index value)
-    (if (= index 0)
-        (cond
-          ((eq? value #t) (cons 'true (cdr state)))
-          ((eq? value #f) (cons 'false (cdr state)))
-          (else (cons value (cdr state))))
-        (cons (car state) (replacer-helper (cdr state) (- index 1) value)))))
-
-; lookup-helper: helper that takes an index and iterates through the second part of the states until it lands on that index,
-; returning that value
-; Will be changed for the second part of the project
-(define lookup-helper
-  (lambda (index lst)
-    (if (= index 0)
-        (car lst)
-        (lookup-helper (- index 1) (cdr lst)))))
 
 ; create-pair: inserts a variable and value into the state given the variable expression and the state
 (define create-pair
@@ -352,12 +329,6 @@
         (error "Error in var statement!")
         (update-states vari (eval-expressions (car expression) states) states))))
 
-; Maybe deprecated method
-; lookup: looks up a variable's value in the state table
-;(define lookup
-; (lambda (vari states)
-;  (lookup-helper (find-index vari states) (cadr states))))
-
 ; ------------------------------------------------------------
 
 
@@ -369,9 +340,9 @@
 ; if not met, returns the current state
 (define while
   (lambda (condition body states k)
-          (if eval-expressions condition states
+          (if (eval-expressions condition states)
               (eval-statement body states (lambda (new-states)
-                (while condition body new-states k))) ; Recursive call in tail position with the continuation
+                (while condition body new-states k)))
             (k states))))
 
 ; ------------------------------------------------------------
@@ -388,9 +359,10 @@
 ; ------------------------------------------------------------
 
 
-; Assignment 2 - Syntax Tree Statements
+; Begin Statement
 ; ------------------------------------------------------------
 ; begin-block: Handles the case of a code block anywhere in the program
+; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
 (define begin-block
   (lambda (block states k)
     (if (null? block)
