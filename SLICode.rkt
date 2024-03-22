@@ -40,20 +40,19 @@
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
-  (lambda (statement states)
+  (lambda (statement states k)
     (cond
       ((null? statement) (cdr states))
       ((list? (car statement)) null)
-      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states)))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) k))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ((eq? (car statement) 'if)
-        (eval_expressions (cadr statement) states (lambda (v)
-            (if-statement v
-              (eval-statement (caddr statement) states)
-              (eval-statement (cadddr statement) states)))))
-      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states))
+            (if-statement (eval_expressions (cadr statement) states)
+              (eval-statement (caddr statement) states k)
+              (eval-statement (cadddr statement) states k)))
+      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
       ((eq? (car statement) 'break) (break-helper states)) ; Temporarily removed k's to get it to run
       ((eq? (car statement) 'continue) (continue-helper states))
       ((eq? (car statement) 'throw) (throw-helper states))
@@ -296,10 +295,17 @@
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
 (define while
-  (lambda (condition body states)
-    (if (eval_expressions condition states)
-        (while condition body (eval-statement body states))
+  (lambda (condition body states k)
+    (if (eval_expressions condition states k)
+        (while condition body (eval-statement body states k))
         states)))
+
+(define while-cps
+  (lambda (condition body states cont)
+          (if eval_expressions condition states
+              (eval-statement body states (lambda (new-states)
+                (while-cps condition body new-states cont))) ; Recursive call in tail position with the continuation
+            (cont states))))
 
 ; ------------------------------------------------------------
 
@@ -308,8 +314,8 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (condition true-condition false-condition states)
-    (if (eval_expressions condition states)
+  (lambda (condition true-condition false-condition states k)
+    (if (eval_expressions condition states k)
         true-condition
         false-condition)))
 ; ------------------------------------------------------------
@@ -319,7 +325,7 @@
 ; ------------------------------------------------------------
 ; begin-block: Handles the case of a code block anywhere in the program
 (define begin-block
-  (lambda (block states)
+  (lambda (block states k)
     (if (null? block)
         (cdr states)
-        (begin-block (cdr block) (eval-statement (car block) states)))))
+        (begin-block (cdr block) (eval-statement (car block) states k)))))
