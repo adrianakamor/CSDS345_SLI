@@ -339,4 +339,6 @@
           ((eq? (car firstsymbol) 'BOOLEAN) (cdr firstsymbol))
           (else (error 'parser "Unknown statmement")))));)
 
+((var a 31160) (var b 1476) (if (< a b) (begin (var temp a) (= a b) (= b temp))) (var r (% a b)) (while (!= r 0) (begin (= a b) (= b r) (= r (% a b)))) (return b))
+
 
