@@ -115,7 +115,7 @@
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
   (lambda (error state k)
-    (error "Throw Error")))
+    (k (error "Error Thrown") state)))
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
@@ -123,15 +123,15 @@
     (eval-statement tblock state
       (lambda (v1 v2)
         (if (eq? v1 'throw)
-          (catch-helper cblock v2 fblock k)
-          (finally-helper fblock v2 (lambda (v3 v4) (k v3 v4))))))))
+          (catch-helper cblock v2 fblock state k)
+          (finally-helper fblock v2 state k))))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
-  (lambda (cblock state fblock k)
+  (lambda (cblock error state fblock k)
     (eval-statement cblock state
       (lambda (v1 v2)
-        (finally-helper fblock state (lambda (v3 v4) (k v3 v4)))))))
+        (finally-helper fblock state k)))))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
@@ -197,7 +197,7 @@
         ((eq? value #t) (cons 'true (cdr lst)))
         ((eq? value #f) (cons 'false (cdr lst)))
         (else (cons value (cdr lst))))
-      (cons (car lst) (replacer-layer (cdr lst) (- index 1) value)))))
+      (cons (car lst) (replacer-layer (cdr lst) (- index 1) value))))) ; should this be (- index 1) value (cdr lst) or am I being silly
 
 
 ; ------------------------------------------------------------
