@@ -105,12 +105,12 @@
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state k)
-    (k 'break state)))
+    (k state)))
 
 ; helper for continue in eval-statements for CPS and taking in continue state
 (define continue-helper
   (lambda (state k)
-    (k 'continue state)))
+    (k state)))
 
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
@@ -270,8 +270,8 @@
 (define while
   (lambda (condition body states k)
     (if (eval-expressions condition states)
-        (while condition body (eval-statement body states k) k)
-        states)))
+        (eval-statement body states (lambda (v) (while condition body v k)))
+        (k states))))
 
 ; ------------------------------------------------------------
 
