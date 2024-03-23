@@ -156,7 +156,7 @@
   (lambda (state layer-pair)
     (cond
       ((eq? 0 (car layer-pair)) (lookup-layer (cadar state) (cadr layer-pair)))
-      (else (lookup-var-helper (cdr state) (cons (- 1 (car layer-pair)) (cdr layer-pair)))))))
+      (else (lookup-var-helper (cdr state) (cons (- (car layer-pair) 1) (cdr layer-pair)))))))
 
 (define lookup-layer
   (lambda (lst index)
@@ -189,7 +189,7 @@
   (lambda (layer-pair val state)
     (if (zero? (car layer-pair))
         (cons (cons (caar state) (list (replacer-layer state (cadr layer-pair) val (cadar state)))) (cdr state))
-        (cons (car state) (replacer-state (cons (- 1 (car layer-pair)) (cdr layer-pair)) val (cdr state))))))
+        (cons (car state) (replacer-state (cons (- (car layer-pair) 1) (cdr layer-pair)) val (cdr state))))))
 
 ; replacer-layer:
 (define replacer-layer
