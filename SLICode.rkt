@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '(((return) (()))))))
+    (eval-program (parser filename) '(((return) (()))) (lambda (v) v))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -26,12 +26,11 @@
 ; essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ; (formatted as ((x y...)(5 7...)) 
 (define eval-program
-  (lambda (syntax-tree states)
+  (lambda (syntax-tree states k)
     (cond
       ((null? syntax-tree) (lookup-var 'return states 0 0))
       (else 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states (lambda (v) v)))))))
-; Error here, eval-statement now takes three arguments, change?
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states k) k)))))
 ; ------------------------------------------------------------
 
 
@@ -161,13 +160,13 @@
         (error "Variable requested not found in the state!")
         (lookup-var-helper state (state-find var state 0)))))
 
-; lookup-var-helper traverses through the layers of the state, and stops when 0
+; lookup-var-helper traverses through all layers of the state, outsourcing to lookup-layer for each individual layer
 (define lookup-var-helper
   (lambda (state layer-pair)
     (cond
       ((eq? 0 (car layer-pair)) (lookup-layer (cadar state) (cadr layer-pair)))
       (else (lookup-var-helper (cdr state) (cons (- (car layer-pair) 1) (cdr layer-pair)))))))
-
+; Lookup-layer: Helper to lookup-var-helper, traverses through the current portion of the state
 (define lookup-layer
   (lambda (lst index)
     (if (zero? index)
@@ -186,7 +185,7 @@
 (define layer-find
   (lambda (x lst)
     (loop lst x 0)))
-
+; look: Helper to layer-find, loops through current portion of state to return the position of desired variable x
 (define loop
   (lambda (lst x index)
     (cond
@@ -194,14 +193,14 @@
       ((eq? (car lst) x) index)
       (else (loop (cdr lst) x (+ index 1))))))
 
-; replacer-state:
+; replacer-state: Traverses the layers of the state, once it arrives at the layer to be altered, it goes to replacer-helper to alter that layer
 (define replacer-state
   (lambda (layer-pair val state)
     (if (zero? (car layer-pair))
         (cons (cons (caar state) (list (replacer-layer state (cadr layer-pair) val (cadar state)))) (cdr state))
         (cons (car state) (replacer-state (cons (- (car layer-pair) 1) (cdr layer-pair)) val (cdr state))))))
 
-; replacer-layer:
+; replacer-layer: Helper to replacer-state, changes the value of the variable at index
 (define replacer-layer
   (lambda (state index value lst)
     (if (= index 0)
@@ -209,7 +208,7 @@
           ((eq? (eval-expressions value state)  #t) (cons 'true (cdr lst)))
           ((eq? (eval-expressions value state)  #f) (cons 'false (cdr lst)))
           (else (cons (eval-expressions value state) (cdr lst))))
-      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst)))))) ; should this be (- index 1) value (cdr lst) or am I being silly
+      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst))))))
 
 
 ; ------------------------------------------------------------
@@ -225,7 +224,7 @@
         lis2
         (cons (car lis1) (append(cdr lis1) lis2)))))
 
-; update-layers: function that updates the states given a variable and a value
+; update-layers: Updates the state for the given val
 (define update-states
   (lambda (vari val states)
     (replacer-state (state-find vari states 0) val states)))
@@ -266,7 +265,6 @@
     (if (null? expression)
         (error "Error in var statement!")
         (update-states vari (eval-expressions (car expression) states) states))))
-;Maybe an error with this continuation?
 
 ; ------------------------------------------------------------
 
