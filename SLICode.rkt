@@ -282,13 +282,19 @@
         ;(k states))))
 
 (define while
-  (lambda (statement states k)
-    (loop statement state k (lambda (v) v)))
+  (lambda (condition body states k)
+    (loop (while-helper condition) body states k)))
+
+(define while-helper
+  (lambda (statement) (cadr statement)))
 
 (define loop
   (lambda (condition body states k)
     (if (eval-expressions condition states)
-        (eval-statement body states (lambda (v) (while condition body v k)))
+        (call/cc (lambda (v1)
+                   (eval-statement body states
+                                   (lambda (v2)
+                                     (v1 (loop condition body v2 k))))))
         (k states))))
 
 ; ------------------------------------------------------------
