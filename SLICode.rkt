@@ -46,7 +46,7 @@
       ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) k))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (k (init-assign 'return (cdr statement) states)))
+      ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
                      (eval-statement (caddr statement) states k) states))
@@ -132,7 +132,7 @@
     (eval-statement tblock state
       (lambda (v1 v2)
         (if (eq? v1 'throw)
-          (catch-helper cblock v2 fblock state k)
+          (catch-helper cblock v2 state fblock k)
           (finally-helper fblock v2 state k))))))
 
 ; helper to process catch from try-helper using CPS
