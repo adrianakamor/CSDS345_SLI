@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '((() ())))))
+    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k)))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -49,7 +49,7 @@
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
                      (eval-statement (caddr statement) states) states))
-      ((eq? (car statement) 'while) (while-loop (loop-condition statement) (loop-body statement) states))
+      ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement) states))
       ((eq? (car statement) 'break) (if (in-loop states)
                                         (break-helper states)
                                         (error "break is not in a loop")))
@@ -187,9 +187,9 @@
 ; Returns -1 if the variable requested is not found in the current layer of state
 (define layer-find
   (lambda (x lst)
-    (loop lst x 0)))
+    (loop-layer lst x 0)))
 ; look: Helper to layer-find, loops through current portion of state to return the position of desired variable x
-(define loop
+(define loop-layer
   (lambda (lst x index)
     (cond
       ((null? lst) -1)
