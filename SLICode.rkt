@@ -51,14 +51,14 @@
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states k)
                      (eval-statement (caddr statement) states k)
-                     (eval-statement (cadddr statement) states k)))
+                     (eval-statement (cadddr statement) states k) states k))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
-      ((eq? (car statement) 'break) (break-helper states))
-      ((eq? (car statement) 'continue) (continue-helper states))
-      ((eq? (car statement) 'throw) (throw-helper states))
-      ((eq? (car statement) 'try) (try-helper states))
+      ((eq? (car statement) 'break) (break-helper states k))
+      ((eq? (car statement) 'continue) (continue-helper states k))
+      ((eq? (car statement) 'throw) (throw-helper (cadr statement) states k))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states k))
       (else
-       (eval-statement (cdr statement) states)))))
+       (eval-statement (cdr statement) states k)))))
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
@@ -188,7 +188,7 @@
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
   (lambda (error state k)
-    (k (error "Error Thrown") state)))
+    (k (list 'error error) state)))
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
@@ -230,6 +230,7 @@
     (cond
       ((eq? 0 (car layer-pair)) (lookup-layer (cadar state) (cadr layer-pair)))
       (else (lookup-var-helper (cdr state) (cons (- 1 (car layer-pair)) (cdr layer-pair)))))))
+
 (define lookup-layer
   (lambda (lst index)
     (if (zero? index)
@@ -248,6 +249,7 @@
 (define layer-find
   (lambda (x lst)
     (loop lst x 0)))
+
 (define loop
   (lambda (lst x index)
     (cond
