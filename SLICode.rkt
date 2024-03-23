@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (eval-program (parser filename) '(((return) (()))) (lambda (v) v))))
+    (eval-program (parser filename) '((() ())))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -26,11 +26,11 @@
 ; essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ; (formatted as ((x y...)(5 7...)) 
 (define eval-program
-  (lambda (syntax-tree states k)
+  (lambda (syntax-tree states return)
     (cond
       ((null? syntax-tree) (lookup-var 'return states 0 0))
       (else 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states k) k)))))
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return) return)))))
 ; ------------------------------------------------------------
 
 
@@ -39,26 +39,31 @@
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
-  (lambda (statement states k)
+  (lambda (statement states return)
     (cond
       ((null? statement) (cdr states))
-      ((list? (car statement)) null)
-      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) k))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states)))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (k (init-assign 'return (cdr statement) states)))
+      ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
-                     (eval-statement (caddr statement) states k) states))
-      ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
+                     (eval-statement (caddr statement) states) states))
+      ((eq? (car statement) 'while) (while-loop (loop-condition statement) (loop-body statement) states))
       ((eq? (car statement) 'break) (if (in-loop states)
-                                        (break-helper states k)
+                                        (break-helper states)
                                         (error "break is not in a loop")))
-      ((eq? (car statement) 'continue) (continue-helper states k))
-      ((eq? (car statement) 'throw) (throw-helper (cadr statement) states k))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states k))
+      ((eq? (car statement) 'continue) (continue-helper states))
+      ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states))
       (else
-       (eval-statement (cdr statement) states k)))))
+       (eval-statement (cdr statement) states)))))
+
+;; Abstraction Helpers for the eval-statement function
+; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
+(define loop-condition cadr)
+(define loop-body caddr)
+
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
@@ -217,13 +222,6 @@
 ; Assignment 1 Specific Helper Functions
 ; ------------------------------------------------------------
 
-; append: Implementation of the append function from class
-(define append
-  (lambda (lis1 lis2)
-    (if (null? lis1)
-        lis2
-        (cons (car lis1) (append(cdr lis1) lis2)))))
-
 ; update-layers: Updates the state for the given val
 (define update-states
   (lambda (vari val states)
@@ -275,10 +273,10 @@
 ; checks to ensure that the loop condition is met before entering the loop
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
-(define while
+(define while-loop
   (lambda (condition body states k)
     (if (eval-expressions condition states)
-        (eval-statement body states (lambda (v) (while condition body v k)))
+        (eval-statement body states (lambda (v) (while-loop condition body v k)))
         (k states))))
 
 ; ------------------------------------------------------------
