@@ -42,14 +42,14 @@
   (lambda (statement states return)
     (cond
       ((null? statement) (cdr states))
-      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states)))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
-                     (eval-statement (caddr statement) states) states))
-      ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement) states))
+                     (eval-statement (caddr statement) states return) states))
+      ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement) states return))
       ((eq? (car statement) 'break) (if (in-loop states)
                                         (break-helper states)
                                         (error "break is not in a loop")))
@@ -194,7 +194,7 @@
     (cond
       ((null? lst) -1)
       ((eq? (car lst) x) index)
-      (else (loop (cdr lst) x (+ index 1))))))
+      (else (loop-layer (cdr lst) x (+ index 1))))))
 
 ; replacer-state: Traverses the layers of the state, once it arrives at the layer to be altered, it goes to replacer-helper to alter that layer
 (define replacer-state
@@ -280,8 +280,8 @@
         ;(k states))))
 
 (define while
-  (lambda (condition body states k)
-    (loop (while-helper condition) body states k)))
+  (lambda (condition body states return)
+    (loop (while-helper condition) body states return)))
 
 (define while-helper
   (lambda (statement) (cadr statement)))
@@ -313,7 +313,7 @@
 ; begin-block: Handles the case of a code block anywhere in the program
 ; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
 (define begin-block
-  (lambda (block states k)
+  (lambda (block states return)
     (if (null? block)
         (cdr states)
-        (begin-block (cdr block) (eval-statement (car block) states k) k))))
+        (begin-block (cdr block) (eval-statement (car block) states return) return))))
