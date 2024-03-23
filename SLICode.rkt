@@ -47,12 +47,14 @@
       ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) k))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
-      ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
+      ((eq? (car statement) 'return) (k (init-assign 'return (cdr statement) states)))
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
                      (eval-statement (caddr statement) states k) states))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
-      ((eq? (car statement) 'break) (break-helper states k))
+      ((eq? (car statement) 'break) (if (in-loop states)
+                                        (break-helper states k)
+                                        (error "break is not in a loop")))
       ((eq? (car statement) 'continue) (continue-helper states k))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states k))
       ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states k))
@@ -105,12 +107,20 @@
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state k)
-    (k 'break state)))
+    (k state)))
+
+
+; helper for break for determining if break statement is inside a loop or not
+(define in-loop
+  (lambda (states)
+    (if (null? states)
+        #f
+        (or (eq? (caar states) 'while) (in-loop (cdr states))))))
 
 ; helper for continue in eval-statements for CPS and taking in continue state
 (define continue-helper
   (lambda (state k)
-    (k 'continue state)))
+    (k state)))
 
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
@@ -270,8 +280,8 @@
 (define while
   (lambda (condition body states k)
     (if (eval-expressions condition states)
-        (while condition body (eval-statement body states k) k)
-        states)))
+        (eval-statement body states (lambda (v) (while condition body v k)))
+        (k states))))
 
 ; ------------------------------------------------------------
 
