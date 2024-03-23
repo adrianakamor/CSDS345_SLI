@@ -50,8 +50,7 @@
       ((eq? (car statement) 'return) (init-assign 'return (cdr statement) states))
       ((eq? (car statement) 'if)
        (if-statement (eval-expressions (cadr statement) states)
-                     (eval-statement (caddr statement) states)
-                     (eval-statement (cadddr statement) states) states))
+                     (eval-statement (caddr statement) states k) states))
       ((eq? (car statement) 'while) (while (cadr statement) (caddr statement) states k))
       ((eq? (car statement) 'break) (break-helper states k))
       ((eq? (car statement) 'continue) (continue-helper states k))
@@ -270,10 +269,9 @@
 ; if not met, returns the current state
 (define while
   (lambda (condition body states k)
-          (if (eval-expressions condition states)
-              (eval-statement body states (lambda (new-states)
-                (while condition body new-states)))
-            (k states))))
+    (if (eval-expressions condition states)
+        (while condition body (eval-statement body states k) k)
+        states)))
 
 ; ------------------------------------------------------------
 
@@ -282,10 +280,10 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (condition true-condition false-condition states k)
+  (lambda (condition true-condition states)
     (if (eval-expressions condition states)
         true-condition
-        false-condition)))
+        states)))
 ; ------------------------------------------------------------
 
 
