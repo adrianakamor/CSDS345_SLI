@@ -133,14 +133,12 @@
       (lambda (v1 v2)
         (if (eq? v1 'throw)
           (catch-helper cblock v2 fblock state k)
-          (finally-helper fblock v2 state k))))))
+          (finally-helper fblock state k))))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
   (lambda (cblock error state fblock k)
-    (eval-statement cblock state
-      (lambda (v1 v2)
-        (finally-helper fblock state k)))))
+    (eval-statement cblock state (finally-helper fblock state k))))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
@@ -275,7 +273,19 @@
 ; checks to ensure that the loop condition is met before entering the loop
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
+
+; old while
+;(define while
+  ;(lambda (condition body states k)
+    ;(if (eval-expressions condition states)
+        ;(eval-statement body states (lambda (v) (while condition body v k)))
+        ;(k states))))
+
 (define while
+  (lambda (statement states k)
+    (loop statement state k (lambda (v) v)))
+
+(define loop
   (lambda (condition body states k)
     (if (eval-expressions condition states)
         (eval-statement body states (lambda (v) (while condition body v k)))
