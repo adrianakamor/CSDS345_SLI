@@ -156,20 +156,20 @@
     (eval-statement tblock state
       (lambda (v1 v2)
         (if (eq? v1 'throw)
-          (catch-helper cblock v2 fblock state return continue)
-          (finally-helper fblock state return))) continue next break)))
+          (catch-helper cblock v2 fblock state return continue next break)
+          (finally-helper fblock state return continue next break))) continue next break)))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
-  (lambda (cblock error state fblock return continue)
-    (eval-statement cblock state (finally-helper fblock state return continue) continue)))
+  (lambda (cblock error state fblock return continue next break)
+    (eval-statement cblock state (finally-helper fblock state return continue next break) continue next break)))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
-  (lambda (fblock state return continue)
+  (lambda (fblock state return continue next break)
     (if (null? fblock)
         (return '() state)
-        (eval-statement fblock state return continue))))
+        (eval-statement fblock state return continue next break))))
 
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
 (define new-layer (lambda (state) (cons '(() ()) state)))
