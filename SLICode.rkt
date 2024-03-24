@@ -48,13 +48,11 @@
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if)
-       (if-statement (cadr statement) (caddr statement) states return continue))
+       (if-statement (cadr statement) (caddr statement) states return continue next))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
                                            (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next)))
                                            return continue next))
-      ((eq? (car statement) 'break) (if (in-loop states)
-                                        (break-helper states)
-                                        (error "break is not in a loop")))
+      ((eq? (car statement) 'break) (break-helper states next))
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
       ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue))
@@ -118,15 +116,34 @@
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state k)
-    (k state)))
+    (k state #t)))
+
+;(define break-helper
+  ;(lambda (state k)
+    ;(if (in-loop state)
+        ;(k (cdr (cdr state)))
+        ;(error "break is not in a loop"))))
 
 
 ; helper for break for determining if break statement is inside a loop or not
-(define in-loop
-  (lambda (states)
-    (if (null? states)
-        #f
-        (or (eq? (caar states) 'while) (in-loop (cdr states))))))
+;(define in-loop
+  ;(lambda (states)
+    ;(if (null? states)
+        ;#f
+        ;(or (loop-check (caar states)) (in-loop (cdr states))))))
+
+;(define loop-check
+  ;(lambda (statement)
+    ;(cond
+      ;((eq? (car statement) 'while) #t)
+      ;((eq? (car statement) 'begin) (loop-block (cdr statement)))
+      ;(else #f))))
+
+;(define loop-block
+  ;(lambda (block)
+    ;(if (null? block)
+        ;#f
+        ;(or (loop-check (car block)) (loop-block (cdr block))))))
 
 ; helper for continue in eval-statements for CPS and taking in continue state
 (define continue-helper
@@ -294,7 +311,9 @@
 (define loop
   (lambda (condition body states return continue next)
     (if (eval-expressions condition states)
-        (loop condition body (eval-statement body states return continue next) return continue next)
+        (if (caddr states)
+            (next (cdr (cdr states)))
+            (loop condition body (eval-statement body states return continue next) return continue next))
         (next states))))
 ; ------------------------------------------------------------
 
@@ -303,9 +322,9 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (condition true-condition states return continue)
+  (lambda (condition true-condition states return continue next)
     (if (eval-expressions condition states)
-        (eval-statement true-condition states return continue)
+        (eval-statement true-condition states return continue next)
         states)))
 ; ------------------------------------------------------------
 
