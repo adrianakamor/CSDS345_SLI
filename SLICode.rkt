@@ -30,7 +30,7 @@
     (cond
       ((null? syntax-tree) return)
       (else 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return) return)))))
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return null null) return)))))
 ; ------------------------------------------------------------
 
 
@@ -39,24 +39,26 @@
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
-  (lambda (statement states return)
+  (lambda (statement states return continue next)
     (cond
       ((null? statement) (cdr states))
-      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if)
-       (if-statement (cadr statement) (caddr statement) states return))
-      ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement) states return))
+       (if-statement (cadr statement) (caddr statement) states return continue))
+      ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
+                                           (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next)))
+                                           return continue next))
       ((eq? (car statement) 'break) (if (in-loop states)
                                         (break-helper states)
                                         (error "break is not in a loop")))
-      ((eq? (car statement) 'continue) (continue-helper states))
+      ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue))
       (else
-       (eval-statement (cdr statement) states)))))
+       (eval-statement (cdr statement) states return continue)))))
 
 ;; Abstraction Helpers for the eval-statement function
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
@@ -107,6 +109,11 @@
 ; Assignment 2-specific Helper Functions
 ; ------------------------------------------------------------
 
+; remove-top-layer: Removes the top layer of the state
+(define remove-top-layer
+  (lambda (state)
+    (cdr state)))
+
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state k)
@@ -132,24 +139,24 @@
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
-  (lambda (tblock cblock fblock state k)
+  (lambda (tblock cblock fblock state return continue)
     (eval-statement tblock state
       (lambda (v1 v2)
         (if (eq? v1 'throw)
-          (catch-helper cblock v2 fblock state k)
-          (finally-helper fblock state k))))))
+          (catch-helper cblock v2 fblock state return continue)
+          (finally-helper fblock state return))))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
-  (lambda (cblock error state fblock k)
-    (eval-statement cblock state (finally-helper fblock state k))))
+  (lambda (cblock error state fblock return continue)
+    (eval-statement cblock state (finally-helper fblock state return continue) continue)))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
-  (lambda (fblock state k)
+  (lambda (fblock state return continue)
     (if (null? fblock)
-        (k '() state)
-        (eval-statement fblock state k))))
+        (return '() state)
+        (eval-statement fblock state return continue))))
 
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
 (define new-layer (lambda (state) (cons '(() ()) state)))
@@ -279,14 +286,15 @@
         ;(k states))))
 
 (define while
-  (lambda (condition body states return)
-    (loop condition body states return)))
+  (lambda (condition body states return continue next)
+    (loop condition body states return
+          (lambda (c) (while condition body (remove-top-layer c) return continue next)) next)))
 
 (define loop
-  (lambda (condition body states return)
+  (lambda (condition body states return continue next)
     (if (eval-expressions condition states)
-        (loop condition body (eval-statement body states return) return)
-        (states))))
+        (loop condition body (eval-statement body states return continue next) return continue next)
+        (next states))))
 ; ------------------------------------------------------------
 
 ; If Statement
@@ -294,9 +302,9 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (condition true-condition states return)
+  (lambda (condition true-condition states return continue)
     (if (eval-expressions condition states)
-        (eval-statement true-condition states return)
+        (eval-statement true-condition states return continue)
         states)))
 ; ------------------------------------------------------------
 
@@ -306,7 +314,7 @@
 ; begin-block: Handles the case of a code block anywhere in the program
 ; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
 (define begin-block
-  (lambda (block states return)
+  (lambda (block states return continue next)
     (if (null? block)
         (cdr states)
-        (begin-block (cdr block) (eval-statement (car block) states return) return))))
+        (begin-block (cdr block) (eval-statement (car block) states return continue next) return continue next))))
