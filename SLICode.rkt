@@ -54,7 +54,7 @@
       ((eq? (car statement) 'break) (break-helper states break))
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue next break))
       (else
        (eval-statement (cdr statement) states return continue next break)))))
 
@@ -152,12 +152,12 @@
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
-  (lambda (tblock cblock fblock state return continue)
+  (lambda (tblock cblock fblock state return continue next break)
     (eval-statement tblock state
       (lambda (v1 v2)
         (if (eq? v1 'throw)
           (catch-helper cblock v2 fblock state return continue)
-          (finally-helper fblock state return))) continue (lambda (next) next) (lambda (break) break))))
+          (finally-helper fblock state return))) continue next break)))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
