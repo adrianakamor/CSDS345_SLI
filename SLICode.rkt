@@ -271,12 +271,7 @@
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)))
-               ; I think this fixes no assignment to variable
-               (cons (cons (cadr statement) '()) states))))))
-               ; other possible route for variable with no value assigned
-               ; (init-assign (cadr statement) '() (cons (create-pair (cadr statement) (car states) '()) (cdr states))))))))
-               ; original statementy for variable with no value assigned
-               ; (create-pair (cadr statement) states '()))))))
+               (cons (create-pair (cadr statement) (car states) '()) (cdr states)))))))
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
 ;checks to make sure that the variable has been declared; if not (idk what it'll do lol)
@@ -286,7 +281,6 @@
 (define init-assign
   (lambda (vari expression states)
     (if (null? expression)
-
         (error "Error in var statement!")
         (update-states vari (eval-expressions (car expression) states) states))))
 
