@@ -28,7 +28,7 @@
 (define eval-program
   (lambda (syntax-tree states return)
     (cond
-      ((null? syntax-tree) (lookup-var 'return states 0 0))
+      ((null? syntax-tree) return)
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return) return)))))
 ; ------------------------------------------------------------
@@ -47,8 +47,7 @@
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if)
-       (if-statement (eval-expressions (cadr statement) states)
-                     (eval-statement (caddr statement) states return) states))
+       (if-statement (cadr statement) (caddr statement) states return))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement) states return))
       ((eq? (car statement) 'break) (if (in-loop states)
                                         (break-helper states)
@@ -281,19 +280,13 @@
 
 (define while
   (lambda (condition body states return)
-    (loop (while-helper condition) body states return)))
-
-(define while-helper
-  (lambda (statement) (cadr statement)))
+    (loop condition body states return)))
 
 (define loop
-  (lambda (condition body states k)
+  (lambda (condition body states return)
     (if (eval-expressions condition states)
-        (call/cc (lambda (v1)
-                   (eval-statement body states
-                                   (lambda (v2)
-                                     (v1 (loop condition body v2 k))))))
-        (k states))))
+        (loop condition body (eval-statement body states return) return)
+        (states))))
 ; ------------------------------------------------------------
 
 ; If Statement
@@ -301,9 +294,9 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (condition true-condition states)
+  (lambda (condition true-condition states return)
     (if (eval-expressions condition states)
-        true-condition
+        (eval-statement true-condition states return)
         states)))
 ; ------------------------------------------------------------
 
