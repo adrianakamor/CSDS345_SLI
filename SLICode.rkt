@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k)))))
+    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null)))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -26,11 +26,12 @@
 ; essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ; (formatted as ((x y...)(5 7...)) 
 (define eval-program
-  (lambda (syntax-tree states return)
+  (lambda (syntax-tree states return continue next)
     (cond
       ((null? syntax-tree) return)
       (else 
-       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return null null) return)))))
+       (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
+                                     (lambda (k) (begin-block (cdr syntax-tree) k return continue next))) return continue next)))))
 ; ------------------------------------------------------------
 
 
@@ -313,8 +314,11 @@
 ; ------------------------------------------------------------
 ; begin-block: Handles the case of a code block anywhere in the program
 ; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
+
 (define begin-block
   (lambda (block states return continue next)
     (if (null? block)
         (cdr states)
-        (begin-block (cdr block) (eval-statement (car block) states return continue next) return continue next))))
+        (begin-block (cdr block)
+                     (eval-statement (car block) states return continue
+                                     (lambda (k) (begin-block (cdr block) k return continue next))) return continue next))))
