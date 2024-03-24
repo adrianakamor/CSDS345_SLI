@@ -54,9 +54,9 @@
       ((eq? (car statement) 'break) (break-helper states break))
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue next break))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue))
       (else
-       (eval-statement (cdr statement) states return continue)))))
+       (eval-statement (cdr statement) states return continue next break)))))
 
 ;; Abstraction Helpers for the eval-statement function
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
@@ -157,7 +157,7 @@
       (lambda (v1 v2)
         (if (eq? v1 'throw)
           (catch-helper cblock v2 fblock state return continue)
-          (finally-helper fblock state return))))))
+          (finally-helper fblock state return))) continue (lambda (next) next) (lambda (break) break))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
@@ -188,6 +188,7 @@
     (cond
       ((eq? 0 (car layer-pair)) (lookup-layer (cadar state) (cadr layer-pair)))
       (else (lookup-var-helper (cdr state) (cons (- (car layer-pair) 1) (cdr layer-pair)))))))
+
 ; Lookup-layer: Helper to lookup-var-helper, traverses through the current portion of the state
 (define lookup-layer
   (lambda (lst index)
@@ -202,11 +203,13 @@
       ((null? state) -1)
       ((eq? -1 (layer-find var (caar state))) (state-find var (cdr state) (+ 1 layer)))
       (else (cons layer (cons (layer-find var (caar state)) '()))))))
+
 ; layer-find: function + helper that takes the states and a given variable, and finds the index of that variable in the first part of states
 ; Returns -1 if the variable requested is not found in the current layer of state
 (define layer-find
   (lambda (x lst)
     (loop-layer lst x 0)))
+
 ; look: Helper to layer-find, loops through current portion of state to return the position of desired variable x
 (define loop-layer
   (lambda (lst x index)
@@ -268,7 +271,12 @@
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)))
-               (create-pair (cadr statement) states '()))))))
+               ; I think this fixes no assignment to variable
+               (cons (cons (cadr statement) '()) states))))))
+               ; other possible route for variable with no value assigned
+               ; (init-assign (cadr statement) '() (cons (create-pair (cadr statement) (car states) '()) (cdr states))))))))
+               ; original statementy for variable with no value assigned
+               ; (create-pair (cadr statement) states '()))))))
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
 ;checks to make sure that the variable has been declared; if not (idk what it'll do lol)
@@ -278,6 +286,7 @@
 (define init-assign
   (lambda (vari expression states)
     (if (null? expression)
+
         (error "Error in var statement!")
         (update-states vari (eval-expressions (car expression) states) states))))
 
@@ -290,13 +299,6 @@
 ; checks to ensure that the loop condition is met before entering the loop
 ; if met, loops until loop condition is no longer met
 ; if not met, returns the current state
-
-; old while
-;(define while
-  ;(lambda (condition body states k)
-    ;(if (eval-expressions condition states)
-        ;(eval-statement body states (lambda (v) (while condition body v k)))
-        ;(k states))))
 
 (define while
   (lambda (condition body states return continue next break)
