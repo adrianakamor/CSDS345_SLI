@@ -27,13 +27,13 @@
 
 
 
-;Parse Function
-; eval-program: parses the file into its syntax tree
-; how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases
-; essentially, it will be treated the same as any other variable 'x' or 'y'
-; at the end of the syntax tree, the return value will be called from the state list and outputted
-; essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
-; (formatted as ((x y...)(5 7...)) 
+; Parse Function
+;  eval-program: parses the file into its syntax tree
+;  how returns will be handled is that during the program, we can assume that the return function is called only once except for if/else cases
+;  essentially, it will be treated the same as any other variable 'x' or 'y'
+;  at the end of the syntax tree, the return value will be called from the state list and outputted
+;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
+;  (formatted as ((x y...)(5 7...)) 
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
@@ -41,6 +41,7 @@
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
+
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
@@ -80,7 +81,6 @@
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
-; Bugs here in that only the first value of any expression is returned opposed to the result of the expression
 (define eval-expressions
     (lambda (expression state)
       (cond
@@ -124,13 +124,12 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; remove-top-layer: Removes the top layer of the state
-(define remove-top-layer
-  (lambda (state)
-    (cdr state)))
+; Go To Statements
+; ------------------------------------------------------------
 
 ; Brake
 ; ------------------------------------------------------------
+
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state break)
@@ -166,10 +165,18 @@
   (lambda (state k)
     (k state)))
 
+; Throw
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
   (lambda (error state k)
     (k (list 'error error) state)))
+
+; ------------------------------------------------------------
+
+
+
+; Try Catch Statements
+; ------------------------------------------------------------
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
@@ -177,10 +184,7 @@
     (begin-block tblock (new-layer states)
       ;return
       return
-      #| (lambda (v1 v2)
-           (if (eq? v1 'throw)
-             (catch-helper cblock v2 fblock states return continue next break)
-          (finally-helper fblock states return continue next break))) |#
+    
       ;continue
       (lambda (s) (finally-helper fblock s return continue next break throw))
 
@@ -203,8 +207,22 @@
   (lambda (fblock states return continue next break throw)
     (begin-block fblock (new-layer states) return continue next break throw)))
 
+; ------------------------------------------------------------
+
+
+
+; remove-top-layer: Removes the top layer of the state
+(define remove-top-layer
+  (lambda (state)
+    (cdr state)))
+
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
 (define new-layer (lambda (states) (cons '(() ()) states)))
+
+
+
+; Lookup Functions
+; ------------------------------------------------------------
 
 ; lookup-var: Looking up the layer and index of the desired variable
 ; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
@@ -228,6 +246,13 @@
         (car lst)
         (lookup-layer (cdr lst) (- index 1)))))
 
+; ------------------------------------------------------------
+
+
+
+; Find Functions
+; ------------------------------------------------------------
+
 ; state-find: Looking up the layer and the index in said layer for the desired variable
 (define state-find
   (lambda (var state layer)
@@ -250,6 +275,13 @@
       ((eq? (car lst) x) index)
       (else (loop-layer (cdr lst) x (+ index 1))))))
 
+; ------------------------------------------------------------
+
+
+
+; Replace Functions
+; ------------------------------------------------------------
+
 ; replacer-state: Traverses the layers of the state, once it arrives at the layer to be altered, it goes to replacer-helper to alter that layer
 (define replacer-state
   (lambda (layer-pair val state)
@@ -266,12 +298,16 @@
           ((eq? (eval-expressions value state)  #f) (cons 'false (cdr lst)))
           (else (cons (eval-expressions value state) (cdr lst))))
       (cons (car lst) (replacer-layer state (- index 1) value (cdr lst))))))
-
-
 ; ------------------------------------------------------------
 
 
+; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+
+
 ; Assignment 1 Specific Helper Functions
+; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
 ; update-layers: Updates the state for the given val
@@ -286,17 +322,20 @@
           (cons (cons value (cadr x)) '()))))
 
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 
 
 ; Syntax Tree Statements
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
 
 ; declare-var: accepts the current statement (which will have a var in it) and the current list of states ((...)(...))
-;will detect if there is an equals sign after this, in which case it will call the assign function
-;cadr is the variable of the statement
-;cdddr is the expression of the statement
-;returns the updated state with a new variable
-;checks if there's an equals sign/anything after the variable
+;  will detect if there is an equals sign after this, in which case it will call the assign function
+;  cadr is the variable of the statement
+;  cdddr is the expression of the statement
+;  returns the updated state with a new variable
+;  checks if there's an equals sign/anything after the variable
 (define declare-var
   (lambda (statement states)
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
@@ -306,10 +345,10 @@
                (cons (create-pair (cadr statement) (car states) '()) (cdr states)))))))
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
-;checks to make sure that the variable has been declared; if not (idk what it'll do lol)
-;will take the value on the right of the = and first pass it into an expression function
-;will then take the result of the expression function and assign it to the variable on the left of the =
-;will return the updated state with an updated value for the var in question
+;  checks to make sure that the variable has been declared; if not (idk what it'll do lol)
+;  will take the value on the right of the = and first pass it into an expression function
+;  will then take the result of the expression function and assign it to the variable on the left of the =
+;  will return the updated state with an updated value for the var in question
 (define init-assign
   (lambda (vari expression states)
     (if (null? expression)
@@ -317,15 +356,19 @@
         (update-states vari (eval-expressions (car expression) states) states))))
 
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 
 
 ; While Loop
 ; ------------------------------------------------------------
-; accepts the current statement as a while loop, and a current list of states
-; checks to ensure that the loop condition is met before entering the loop
-; if met, loops until loop condition is no longer met
-; if not met, returns the current state
+; ------------------------------------------------------------
 
+; While
+;  accepts the current statement as a while loop, and a current list of states
+;  checks to ensure that the loop condition is met before entering the loop
+;  if met, loops until loop condition is no longer met
+;  if not met, returns the current state
 (define while
   (lambda (condition body states return continue next break throw)
     (loop condition body states return
@@ -336,12 +379,19 @@
     (if (eval-expressions condition states)
         (loop condition body (eval-statement body states return continue next break throw) return continue next break throw)
         (next states))))
+
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+
 
 ; If Statement
 ; ------------------------------------------------------------
-; accepts the current statement as an if statement and a list of states
-; if the condition is met/is true, we perform the desired operation
+; ------------------------------------------------------------
+
+; If
+;  accepts the current statement as an if statement and a list of states
+;  if the condition is met/is true, we perform the desired operation
 (define if-statement
   (lambda (statement states return continue next break throw)
     (cond
@@ -349,18 +399,23 @@
       ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue next break throw))
       (else states))))
 
+; definition helpers for if
 (define second-condition cdddr)
 (define condition cadr)
 (define true-statement caddr)
 (define false-statement cadddr)
+
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 
 
 ; Begin Statement
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 ; begin-block: Handles the case of a code block anywhere in the program
 ; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
-
 (define begin-block
   (lambda (block states return continue next break throw)
     (if (null? block)
@@ -368,3 +423,6 @@
         (begin-block (cdr block)
                      (eval-statement (car block) states return continue
                                      (lambda (k) (begin-block (cdr block) k return continue next break throw)) break throw) return continue next break throw))))
+
+; ------------------------------------------------------------
+; ------------------------------------------------------------
