@@ -16,7 +16,7 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null)))))
+    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null null)))))
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -26,12 +26,12 @@
 ; essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ; (formatted as ((x y...)(5 7...)) 
 (define eval-program
-  (lambda (syntax-tree states return continue next break)
+  (lambda (syntax-tree states return continue next break throw)
     (cond
       ((null? syntax-tree) return)
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
-                                     (lambda (k) (begin-block (cdr syntax-tree) k return continue next break)) break) return continue next break)))))
+                                     (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
 ; ------------------------------------------------------------
 
 
@@ -40,23 +40,23 @@
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
-  (lambda (statement states return continue next break)
+  (lambda (statement states return continue next break throw)
     (cond
       ((null? statement) (cdr states))
-      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next break))
+      ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next break throw))
       ((eq? (car statement) 'var) (declare-var statement states))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states))
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
-      ((eq? (car statement) 'if) (if-statement statement states return continue next break))
+      ((eq? (car statement) 'if) (if-statement statement states return continue next break throw))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
                                            (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next break)))
-                                           return continue next break))
+                                           return continue next break throw))
       ((eq? (car statement) 'break) (break-helper states break))
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue next break))
+      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue next break throw))
       (else
-       (eval-statement (cdr statement) states return continue next break)))))
+       (eval-statement (cdr statement) states return continue next break throw)))))
 
 ;; Abstraction Helpers for the eval-statement function
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
@@ -152,35 +152,46 @@
 
 ; helper for try in eval statements using CPS and referencing catch and finally
 (define try-helper
-  (lambda (tblock cblock fblock state return continue next break)
-    (begin-block tblock state
-      (lambda (v1 v2)
-        (if (eq? v1 'throw)
-          (catch-helper cblock v2 fblock state return continue next break)
-          (finally-helper fblock state return continue next break))) continue next break)))
+  (lambda (tblock cblock fblock states return continue next break throw)
+    (begin-block tblock (new-layer states)
+      ;return
+      return
+      #| (lambda (v1 v2)
+           (if (eq? v1 'throw)
+             (catch-helper cblock v2 fblock states return continue next break)
+          (finally-helper fblock states return continue next break))) |#
+      ;continue
+      (lambda (s) (finally-helper fblock s return continue next break throw))
+
+      ;next
+      (lambda (s) (finally-helper fblock s return continue next break throw))
+
+      ;break
+      (lambda (s) (finally-helper fblock s return continue break break throw))
+
+      ;throw
+      (lambda (s e) (catch-helper cblock e s )))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
-  (lambda (cblock error state fblock return continue next break)
-    (begin-block cblock state (finally-helper fblock state return continue next break) continue next break)))
+  (lambda (cblock error states return continue next break throw)
+    (begin-block cblock (declare-var (list 'var (cadr cblock) error)) (new-layer states) continue next break)))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
-  (lambda (fblock state return continue next break)
-    (if (null? fblock)
-        (return '() state)
-        (begin-block fblock state return continue next break))))
+  (lambda (fblock states return continue next break throw)
+    (begin-block fblock (new-layer states) return continue next break throw)))
 
 ; new-layer: adds an empty layer of (() ()) to the front of the current state, for the current block of code
-(define new-layer (lambda (state) (cons '(() ()) state)))
+(define new-layer (lambda (states) (cons '(() ()) states)))
 
 ; lookup-var: Looking up the layer and index of the desired variable
 ; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
 (define lookup-var
-  (lambda (var state layer index)
-    (if (eq? -1 (state-find var state 0))
+  (lambda (var states layer index)
+    (if (eq? -1 (state-find var states 0))
         (error "Variable requested not found in the state!")
-        (lookup-var-helper state (state-find var state 0)))))
+        (lookup-var-helper states (state-find var states 0)))))
 
 ; lookup-var-helper traverses through all layers of the state, outsourcing to lookup-layer for each individual layer
 (define lookup-var-helper
@@ -295,14 +306,14 @@
 ; if not met, returns the current state
 
 (define while
-  (lambda (condition body states return continue next break)
+  (lambda (condition body states return continue next break throw)
     (loop condition body states return
-          (lambda (c) (while condition body (remove-top-layer c) return continue next break)) next (lambda (s) (next (remove-top-layer s))))))
+          (lambda (c) (while condition body (remove-top-layer c) return continue next break throw)) next (lambda (s) (next (remove-top-layer s))) throw)))
 
 (define loop
-  (lambda (condition body states return continue next break)
+  (lambda (condition body states return continue next break throw)
     (if (eval-expressions condition states)
-        (loop condition body (eval-statement body states return continue next break) return continue next break)
+        (loop condition body (eval-statement body states return continue next break throw) return continue next break throw)
         (next states))))
 ; ------------------------------------------------------------
 
@@ -311,10 +322,10 @@
 ; accepts the current statement as an if statement and a list of states
 ; if the condition is met/is true, we perform the desired operation
 (define if-statement
-  (lambda (statement states return continue next break)
+  (lambda (statement states return continue next break throw)
     (cond
-      ((eval-expressions (condition statement) states) (eval-statement (true-statement statement) states return continue next break))
-      ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue next break))
+      ((eval-expressions (condition statement) states) (eval-statement (true-statement statement) states return continue next break throw))
+      ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue next break throw))
       (else states))))
 
 (define second-condition cdddr)
@@ -330,9 +341,9 @@
 ; With the added state, it manipulates the state and takes the top layer of the state off when it exits the block
 
 (define begin-block
-  (lambda (block states return continue next break)
+  (lambda (block states return continue next break throw)
     (if (null? block)
         (cdr states)
         (begin-block (cdr block)
                      (eval-statement (car block) states return continue
-                                     (lambda (k) (begin-block (cdr block) k return continue next break)) break) return continue next break))))
+                                     (lambda (k) (begin-block (cdr block) k return continue next break throw)) break throw) return continue next break throw))))
