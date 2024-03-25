@@ -4,19 +4,27 @@
 
 
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 ; CSDS 345 - Flow Control Interpreter
 ; Group 3: Noah Henriques, Stephen Hogeman, Adriana Kamor
+
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 
 
 ; Parser Functions
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 ; Interpret Function
 ; interpret: interprets the file and passes it to an evaluator
 (define interpret
   (lambda (filename)
-    ;the program is initialized with a return statement
     (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null)))))
+
+
 
 ;Parse Function
 ; eval-program: parses the file into its syntax tree
@@ -32,11 +40,16 @@
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break)) break) return continue next break)))))
+
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 
 
 ; Expression & Statement Evaluations
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
 (define eval-statement
@@ -58,10 +71,11 @@
       (else
        (eval-statement (cdr statement) states return continue next break)))))
 
-;; Abstraction Helpers for the eval-statement function
+; Abstraction helpers for the eval-statement function
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
 (define loop-condition cadr)
 (define loop-body caddr)
+
 
 
 ; M_value Function
@@ -96,15 +110,18 @@
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state)))
         (else (error "Type Unknown")))))
 
-
 ; Helper methods for eval-expressions for abstraction
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
 
 ; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+
 
 ; Assignment 2-specific Helper Functions
+; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
 ; remove-top-layer: Removes the top layer of the state
@@ -112,6 +129,8 @@
   (lambda (state)
     (cdr state)))
 
+; Brake
+; ------------------------------------------------------------
 ; helper for break in eval-statements for CPS and taking in break state
 (define break-helper
   (lambda (state break)
@@ -139,7 +158,9 @@
     (if (null? block)
         #f
         (or (loop-check (car block)) (loop-block (cdr block))))))
+; ------------------------------------------------------------
 
+; Continue
 ; helper for continue in eval-statements for CPS and taking in continue state
 (define continue-helper
   (lambda (state k)
