@@ -63,12 +63,12 @@
       ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states)))
       ((eq? (car statement) 'if) (if-statement statement states return continue next break throw))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
-                                           (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next break)))
+                                           (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next break throw)))
                                            return continue next break throw))
       ((eq? (car statement) 'break) (break-helper states break))
       ((eq? (car statement) 'continue) (continue-helper states continue))
-      ((eq? (car statement) 'throw) (throw-helper (cadr statement) states))
-      ((eq? (car statement) 'try) (try-helper (cadr statement) (caddr statement) (cadddr statement) states return continue next break throw))
+      ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
+      ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -76,6 +76,10 @@
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
 (define loop-condition cadr)
 (define loop-body caddr)
+
+(define try-body cadr)
+(define catch-block caddr)
+(define finally-block cadddr)
 
 
 
@@ -168,8 +172,8 @@
 ; Throw
 ; helper for throw in eval-statements for CPS and taking in error state plus error
 (define throw-helper
-  (lambda (error state k)
-    (k (list 'error error) state)))
+  (lambda (error state throw)
+    (throw state error)))
 
 ; ------------------------------------------------------------
 
@@ -186,30 +190,37 @@
       return
     
       ;continue
-      (lambda (s) (finally-helper fblock s return continue next break throw))
+      (lambda (s) (finally-helper fblock (remove-top-layer s) return continue next break throw))
 
       ;next
-      (lambda (s) (finally-helper fblock s return continue next break throw))
+      (lambda (s) (finally-helper fblock (remove-top-layer s) return continue next break throw))
 
       ;break
-      (lambda (s) (finally-helper fblock s return continue break break throw))
+      (lambda (s) (finally-helper fblock (remove-top-layer s) return continue break break throw))
 
       ;throw
-      (lambda (s e) (catch-helper cblock e s )))))
+      (lambda (s e) (catch-helper cblock e (remove-top-layer s) return continue
+                                  (lambda (n) (finally-helper fblock (remove-top-layer n) return continue next break throw))
+                                    break throw)))))
 
 ; helper to process catch from try-helper using CPS
 (define catch-helper
   (lambda (cblock error states return continue next break throw)
-    (begin-block cblock (declare-var (list 'var (cadr cblock) error)) (new-layer states) continue next break)))
+    (if (null? cblock)
+        (next states)
+        (begin-block (caddr cblock) (declare-var (cons 'var (list (caadr cblock) error)) (new-layer states)) return continue next break throw))))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
   (lambda (fblock states return continue next break throw)
-    (begin-block fblock (new-layer states) return continue next break throw)))
+    (if (null? fblock)
+        (next states)
+        (begin-block (cadr fblock) (new-layer states) return continue next break throw))))
 
 ; ------------------------------------------------------------
 
-
+; Layer methods: Help add and remove the top layer of the state
+; ------------------------------------------------------------
 
 ; remove-top-layer: Removes the top layer of the state
 (define remove-top-layer
@@ -220,6 +231,7 @@
 (define new-layer (lambda (states) (cons '(() ()) states)))
 
 
+; ------------------------------------------------------------
 
 ; Lookup Functions
 ; ------------------------------------------------------------
@@ -372,12 +384,17 @@
 (define while
   (lambda (condition body states return continue next break throw)
     (loop condition body states return
-          (lambda (c) (while condition body (remove-top-layer c) return continue next break throw)) next (lambda (s) (next (remove-top-layer s))) throw)))
+          (lambda (c) (while condition body (remove-top-layer c) return continue next break throw))
+          next
+          (lambda (s) (next (remove-top-layer s))) throw)))
 
 (define loop
   (lambda (condition body states return continue next break throw)
     (if (eval-expressions condition states)
-        (loop condition body (eval-statement body states return continue next break throw) return continue next break throw)
+        (loop condition body (eval-statement body states return continue
+                                             (lambda (n) (while condition body (remove-top-layer n) return continue next break throw))
+                                             break throw)
+              return continue next break throw)
         (next states))))
 
 ; ------------------------------------------------------------
@@ -395,8 +412,10 @@
 (define if-statement
   (lambda (statement states return continue next break throw)
     (cond
-      ((eval-expressions (condition statement) states) (eval-statement (true-statement statement) states return continue next break throw))
-      ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue next break throw))
+      ((eval-expressions (condition statement) states) (eval-statement (true-statement statement) states return continue
+                                                                       (lambda (n) (next (remove-top-layer n))) break throw))
+      ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue
+                                                                  (lambda (n) (next (remove-top-layer n))) break throw))
       (else states))))
 
 ; definition helpers for if
@@ -419,7 +438,7 @@
 (define begin-block
   (lambda (block states return continue next break throw)
     (if (null? block)
-        (cdr states)
+        (next states)
         (begin-block (cdr block)
                      (eval-statement (car block) states return continue
                                      (lambda (k) (begin-block (cdr block) k return continue next break throw)) break throw) return continue next break throw))))
