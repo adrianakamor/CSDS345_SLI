@@ -6,8 +6,8 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; CSDS 345 - Flow Control Interpreter
-; Group 3: Noah Henriques, Stephen Hogeman, Adriana Kamor
+; CSDS 345 - Imperative Language Interpreter
+; Group 6: Noah Henriques, Stephen Hogeman, Adriana Kamor
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -41,7 +41,7 @@
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
-
+; Would we want to change this such that it runs through the program 1 time and then defines all functions first?
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
@@ -50,6 +50,16 @@
 ; Expression & Statement Evaluations
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
+
+; Outer_M_state Function:
+; This function runs through the program once, defines the closures of the functions, and the global variables in the base layer of the state
+; (define eval-function
+;   (lambda (statement states return continue next break throw)
+;     (cond
+;       ((null? statement) (eval-statement (function-lookup main) states return continue next break throw))
+;       ((eq? (car statement) 'var) (declare-var statement states))
+;       ((eq? (car statement) 'function) (define-function statement states)) ; This method will define the closure of the function (A triple), Im not sure how this will work yet
+;       (else (eval-function (cdr statement) states return continue next break throw))))))
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -122,6 +132,36 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
+
+; Assignment 3-Specific Helper Functions
+; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+; M_value holds a new definition here to call functions, given the closure defined
+; The closure defines the formal parameters, the body, and the bindings in scope of the function
+
+;(define M_value (Change the name to more fitting)
+;  (lambda (formal_params body bindings states)
+;    (eval-statement body (newenvironment states bindings) return continue next break throw)))
+
+; newenvironment should create a new environment for the function to act upon based on the bindings in scope
+; Does this mean that the environment created for the function is attached to the state we already have, or is it its
+; own separate entity?
+;(define newenvironment
+;  (lambda (states bindings)
+;    (eval_bindings (new-layer states) bindings)))
+
+; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
+; (define eval_bindings
+;   (lambda (states bindings)
+;     (cond
+;       ((null? bindings) )
+;       (else (eval_bindings (declare-var (car bindings) states) (cdr bindings))))))
+
+
+
+; ------------------------------------------------------------
+; ------------------------------------------------------------
 
 
 ; Assignment 2-specific Helper Functions
