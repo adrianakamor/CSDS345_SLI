@@ -79,6 +79,8 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
+      ; add a line here that processes the state of a function
+      ; ((eq? (car statement 'function-parse) (eval-function statement states return continue break next throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -105,6 +107,8 @@
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
         ((symbol? expression)        (lookup-var expression state 0 0))
+        ; add a line that executes the block of function logic
+        ; ((eq? (car epcression) 'function-parse) (execute-function expression state))
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
