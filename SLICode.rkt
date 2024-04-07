@@ -23,6 +23,10 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
+    ; we need to change this somehow to take into account the idea of functions instead of the the program and return
+    ; (let ((syntax-tree (parser filename)))
+    ; (let ((environment (eval-function syntax-tree (newenvironment))))
+    ; (main-function environment)
     (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null null)))))
 
 
@@ -93,6 +97,10 @@
 (define catch-block caddr)
 (define finally-block cadddr)
 
+; possible helpers needed for function definitions, calls, and declarations?
+; function-definition
+; function-call
+; function-declaration
 
 
 ; M_value Function
@@ -162,7 +170,15 @@
 ;       ((null? bindings) )
 ;       (else (eval_bindings (declare-var (car bindings) states) (cdr bindings))))))
 
+; main-function to take in main function
+; (define main-function
+  ; (lambda environment
+    ; (cond
+      ; ((null? (lookup-function 'main environment)) error "No main function")
+      ; (else (eval-function (lookup-function 'main environment) '() environment))))))
 
+; execute-function to call and complete contents of the function state?
+      
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -301,6 +317,14 @@
     (if (zero? index)
         (car lst)
         (lookup-layer (cdr lst) (- index 1)))))
+
+; lookup-function to find a called function
+; (define lookup-function
+  ; (lambda (name environment)
+    ; (cond
+      ; ((null? environment) #f)
+      ; ((eq? (caar environment name) (cdar environment)))
+      ; (else (lookup-function name (cdr environment))))))
 
 ; ------------------------------------------------------------
 
