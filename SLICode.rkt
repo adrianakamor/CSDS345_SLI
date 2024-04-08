@@ -57,10 +57,12 @@
 (define eval-function
   (lambda (statement states return continue next break throw)
     (cond
+      ;What if we just read main differently than everything else, and don't store it as a function?
+      ;I might be stupid on what the booleans check
       ((null? statement) (eval-statement (function-lookup main) states return continue next break throw))
-      ((eq? (car statement) 'var) (declare-var statement states))
-      ((eq? (car statement) 'function) (define-function statement states)) ; This method will define the closure of the function (A triple), Im not sure how this will work yet
-      (else (eval-function (cdr statement) states return continue next break throw))))))
+      ((eq? (cadr statement) 'main) (call/cc (lambda (k) (main-function (statement) states k null null null null))))
+      ((atom? (caar statement)) (eval-function (cdr statement) (eval-statement (car statement) states return continue next break throw) return continue next break throw))
+      (else (eval-function (cdr statement) states return continue next break throw)))))
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -82,7 +84,7 @@
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ; function statement
       ; I know we talked about declaring it and treating it as a variable
-      ((eq? (car statement 'function) (declare-var statement states)))
+      ((eq? (car statement 'function) (eval_bindings statement states)))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -99,6 +101,14 @@
 ; function-definition
 ; function-call
 ; function-declaration
+
+  ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
+  (var x 10)
+  (var y 20)
+  (var z 30)
+  (var min1 (funcall min x y z))
+  (var min2 (funcall min z y x))
+  (function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))))
 
 
 ; M_value Function
@@ -155,19 +165,31 @@
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its
 ; own separate entity?
+
+;Do we need this since we're treating an environment as a state, essentially?
 (define newenvironment
   (lambda (states bindings)
     (eval_bindings (new-layer states) bindings)))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
+
+
 (define eval_bindings
   (lambda (states bindings)
     (cond
       ((null? bindings) '())
       ; should this be changes to cons on the execution of epressions with states and car of bindings?
-      (else (eval_bindings (declare-var (car bindings) states) (cdr bindings))))))
+
+      ;changed "eval_bindings" from (eval_bindings (declare-var (car bindings) states) (cdr bindings)) to
+      ; cadr bindings: func name
+      ; caddr bindings: func parameters
+      ; cdddr bindings: func body
+      ; figured we didn't need to initialize an environment since we did that in newenvironment
+      ;what this does is that when we store the function, we store the function with the parameters and body, but I'm not sure how to handle the states?
+      (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
 
 ; main-function to take in main function
+;Change how we evaluate the main-function
 (define main-function
   (lambda (environment throw)
     (cond
@@ -426,6 +448,9 @@
 ;  will take the value on the right of the = and first pass it into an expression function
 ;  will then take the result of the expression function and assign it to the variable on the left of the =
 ;  will return the updated state with an updated value for the var in question
+
+
+;I did think of one problem; do we have to add return and other things to when we store the function?
 (define init-assign
   (lambda (vari expression states)
     (if (null? expression)
