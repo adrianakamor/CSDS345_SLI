@@ -23,12 +23,9 @@
 (define interpret
   (lambda (filename)
     ;the program is initialized with a return statement
-    ; we need to change this somehow to take into account the idea of functions instead of the the program and return
-    ; (let ((syntax-tree (parser filename)))
-    ; (let ((environment (eval-function syntax-tree (newenvironment))))
-    ; (main-function environment)
+    ; we need to change this somehow to take into account the idea of functions instead of the the program
+    ; being initialized with return or have it so that we use eval program instead
     (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null null)))))
-
 
 
 ; Parse Function
@@ -57,13 +54,13 @@
 
 ; Outer_M_state Function:
 ; This function runs through the program once, defines the closures of the functions, and the global variables in the base layer of the state
-; (define eval-function
-;   (lambda (statement states return continue next break throw)
-;     (cond
-;       ((null? statement) (eval-statement (function-lookup main) states return continue next break throw))
-;       ((eq? (car statement) 'var) (declare-var statement states))
-;       ((eq? (car statement) 'function) (define-function statement states)) ; This method will define the closure of the function (A triple), Im not sure how this will work yet
-;       (else (eval-function (cdr statement) states return continue next break throw))))))
+(define eval-function
+  (lambda (statement states return continue next break throw)
+    (cond
+      ((null? statement) (eval-statement (function-lookup main) states return continue next break throw))
+      ((eq? (car statement) 'var) (declare-var statement states))
+      ((eq? (car statement) 'function) (define-function statement states)) ; This method will define the closure of the function (A triple), Im not sure how this will work yet
+      (else (eval-function (cdr statement) states return continue next break throw))))))
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -83,8 +80,9 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
-      ; add a line here that processes the state of a function
-      ; ((eq? (car statement 'function-parse) (eval-function statement states return continue break next throw))
+      ; function statement
+      ; I know we talked about declaring it and treating it as a variable
+      ((eq? (car statement 'function) (declare-var statement states)))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -115,8 +113,6 @@
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
         ((symbol? expression)        (lookup-var expression state 0 0))
-        ; add a line that executes the block of function logic
-        ; ((eq? (car epcression) 'function-parse) (execute-function expression state))
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
@@ -152,32 +148,32 @@
 ; M_value holds a new definition here to call functions, given the closure defined
 ; The closure defines the formal parameters, the body, and the bindings in scope of the function
 
-;(define M_value (Change the name to more fitting)
-;  (lambda (formal_params body bindings states)
-;    (eval-statement body (newenvironment states bindings) return continue next break throw)))
+(define M_value (Change the name to more fitting)
+  (lambda (formal_params body bindings states throw)
+    (eval-statement body (newenvironment states bindings) '() '() '() '() throw)))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its
 ; own separate entity?
-;(define newenvironment
-;  (lambda (states bindings)
-;    (eval_bindings (new-layer states) bindings)))
+(define newenvironment
+  (lambda (states bindings)
+    (eval_bindings (new-layer states) bindings)))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
-; (define eval_bindings
-;   (lambda (states bindings)
-;     (cond
-;       ((null? bindings) )
-;       (else (eval_bindings (declare-var (car bindings) states) (cdr bindings))))))
+(define eval_bindings
+  (lambda (states bindings)
+    (cond
+      ((null? bindings) '())
+      ; should this be changes to cons on the execution of epressions with states and car of bindings?
+      (else (eval_bindings (declare-var (car bindings) states) (cdr bindings))))))
 
 ; main-function to take in main function
-; (define main-function
-  ; (lambda environment
-    ; (cond
-      ; ((null? (lookup-function 'main environment)) error "No main function")
-      ; (else (eval-function (lookup-function 'main environment) '() environment))))))
-
-; execute-function to call and complete contents of the function state?
+(define main-function
+  (lambda (environment throw)
+    (cond
+      ((null? (lookup-function 'main environment)) error "No main function")
+      ; for else we need to get the body, bindings, and states still
+      (else (M_value (state-find 'main environment) body bindings states throw)))))
       
 
 ; ------------------------------------------------------------
@@ -318,6 +314,7 @@
         (car lst)
         (lookup-layer (cdr lst) (- index 1)))))
 
+; don't think we need this if we treat functions as variables
 ; lookup-function to find a called function
 ; (define lookup-function
   ; (lambda (name environment)
