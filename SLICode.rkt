@@ -32,7 +32,9 @@
 ;  essentially, it will be treated the same as any other variable 'x' or 'y'
 ;  at the end of the syntax tree, the return value will be called from the state list and outputted
 ;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
-;  (formatted as ((x y...)(5 7...)) 
+;  (formatted as ((x y...)(5 7...))
+
+; update to be called/initialized for main function
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
@@ -92,8 +94,10 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ; function and call function eval statements, #4 on assignment
-      ;((eq? (car statement) 'function) (eval_bindings statement states)) ;create/call closure here as well?
+      ; we need to initialize parameters inside function which is currently not in here
+      ; change to have ability to have formal parameters passed to function
       ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) states) return continue next break throw))
+      ; change to eval expression
       ((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
@@ -139,6 +143,8 @@
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state)))
         ; evaluate funcall expression, #4 on assignment
+        ; rewrite to make so that we "look" inside the function using evaluation, if statement to get main and function contents or go to global state
+        ; currently does not store a function
         ((eq? (car expression) 'funcall) (call-func (lookup-function (cadr expression) state) (eval-expressions (caddr expression) state)))    
         (else (error "Type Unknown")))))
 
