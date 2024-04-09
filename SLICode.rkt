@@ -12,8 +12,6 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-
-
 ; Parser Functions
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -57,12 +55,20 @@
 (define eval-function
   (lambda (statement states return continue next break throw)
     (cond
-      ;Pretty sure that we would need to use everything
-      ((null? (cdr statement)) (main-function (statement) states throw))
-      ((eq? (caar statement) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) states) return continue next break throw))
-      ((eq? (caar statement) 'var) (eval-function (cdr statement) (declare-var (car statement) states) return continue next break throw))
+      ((null? statement) (main-function states throw))
+      ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) states) return continue next break throw))
+      ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) states) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
+;For clarity:
+; (create-closure '(function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))) '((() ()))) will return:
+ #| (function main
+              (()
+               ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0)))
+              ((() ()))
+           ) |#
+
+;this technically doesn't work because of how we structured var - theoretically, we shouldn't have to hard code inputs to var....but also whatever tbh
 (define create-closure
   (lambda (function-def state)
     (cons 'function (cons (cadr function-def) (cons (cddr function-def) (cons state '()))))))
@@ -183,12 +189,12 @@
 ; main-function to take in main function
 ;Change how we evaluate the main-function
 
-;
+;(lookup-var expression state 0 0)
 (define main-function
   (lambda (environment throw)
     (cond
-      ((null? (lookup-function 'main environment)) error "No main function")
-      (else (eval-statement (lookup-function 'main environment) '() '() '() throw)))))
+      ((null? (lookup-var 'main environment 0 0)) error "No main function")
+      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) '((() ())) k null null null throw)))))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
