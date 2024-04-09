@@ -25,7 +25,7 @@
     ;the program is initialized with a return statement
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
-    (call/cc (lambda (k) (eval-program (parser filename) '((() ())) k null null null null)))))
+    (call/cc (lambda (k) (eval-function (parser filename) '((() ())) k null null null null)))))
 
 
 ; Parse Function
@@ -42,7 +42,7 @@
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
-; Would we want to change this such that it runs through the program 1 time and then defines all functions first?
+
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
@@ -57,12 +57,14 @@
 (define eval-function
   (lambda (statement states return continue next break throw)
     (cond
-      ;What if we just read main differently than everything else, and don't store it as a function?
-      ;I might be stupid on what the booleans check
-      ((null? statement) (eval-statement (lookup-function 'main) states return continue next break throw))
-      ((eq? (cadr statement) 'main) (call/cc (lambda (k) (main-function (statement states k null null null null)))))
-      ((atom? (caar statement)) (eval-function (cdr statement) (eval-statement (car statement) states return continue next break throw) return continue next break throw))
+      ((null? statement) (main-function states throw))
+      ((eq? (caar statement) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) states) return continue next break throw))
+      ((eq? (caar statement) 'var) (eval-function (cdr statement) (declare-var (car statement) states) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
+
+(define create-closure
+  (lambda (function-def state)
+    (cons 'function (cons (cadr function-def) (cons (cddr function-def) (cons state '()))))))
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -97,15 +99,6 @@
 (define catch-block caddr)
 (define finally-block cadddr)
 
-; assuming someone was using this for testing purposes, I commented this out
-  ; ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
-  ; (var x 10)
-  ; (var y 20)
-  ; (var z 30)
-  ; (var min1 (funcall min x y z))
-  ; (var min2 (funcall min z y x))
-  ; (function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))))
-
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
@@ -119,6 +112,7 @@
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
         ((symbol? expression)        (lookup-var expression state 0 0))
+        ((pair? expression) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
@@ -210,7 +204,7 @@
 ; Go To Statements
 ; ------------------------------------------------------------
 
-; Brake
+; Break
 ; ------------------------------------------------------------
 
 ; helper for break in eval-statements for CPS and taking in break state
@@ -439,6 +433,7 @@
 (define declare-var
   (lambda (statement states)
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
+          ((eq? (car statement) 'function) (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states))))
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)))
