@@ -57,7 +57,8 @@
 (define eval-function
   (lambda (statement states return continue next break throw)
     (cond
-      ((null? statement) (main-function states throw))
+      ;Pretty sure that we would need to use everything
+      ((null? (cdr statement)) (main-function (statement) states throw))
       ((eq? (caar statement) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) states) return continue next break throw))
       ((eq? (caar statement) 'var) (eval-function (cdr statement) (declare-var (car statement) states) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
@@ -181,11 +182,13 @@
 
 ; main-function to take in main function
 ;Change how we evaluate the main-function
+
+;
 (define main-function
   (lambda (environment throw)
     (cond
       ((null? (lookup-function 'main environment)) error "No main function")
-      (else (call-func (lookup-function 'main environment) '() '() '() throw)))))
+      (else (eval-statement (lookup-function 'main environment) '() '() '() throw)))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
