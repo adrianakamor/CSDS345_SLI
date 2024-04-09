@@ -82,9 +82,9 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
-      ; function statement
-      ; I know we talked about declaring it and treating it as a variable
+      ; function and call function eval statements, #4 on assignment
       ((eq? (car statement 'function) (eval_bindings statement states)))
+      ((eq? (car statement) 'funcall) (eval-expressions (caddr statement states)))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -97,10 +97,11 @@
 (define catch-block caddr)
 (define finally-block cadddr)
 
-; possible helpers needed for function definitions, calls, and declarations?
+; possible helpers needed for function definitions and declarations?
 ; function-definition
 ; function-declaration
 
+; assuming someone was using this for testing purposes, I commented this out
   ; ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
   ; (var x 10)
   ; (var y 20)
@@ -139,6 +140,8 @@
         ((eq? (operator expression) '&&)  (and (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state)))
+        ; evaluate funcall expression, #4 on assignment
+        ((eq? (car expression) 'funcall) (call-func (lookup-function (cadr expression) state) (eval-expressions (caddr expression) state)))    
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -154,7 +157,7 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; M_value holds a new definition here to call functions, given the closure defined
+; call-func holds a new definition here to call functions, given the closure defined
 ; The closure defines the formal parameters, the body, and the bindings in scope of the function
 
 ; changed to call-func because it's not the same as our M_value function above
@@ -192,7 +195,7 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-function 'main environment)) error "No main function")
-      (else (call-func (state-find 'main environment) '() '() environment throw)))))
+      (else (call-func (lookup-function 'main environment) '() '() environment throw)))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
