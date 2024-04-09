@@ -92,8 +92,9 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ; function and call function eval statements, #4 on assignment
-      ((eq? (car statement 'function) (eval_bindings statement states)))
-      ((eq? (car statement) 'funcall) (eval-expressions (caddr statement states)))
+      ;((eq? (car statement) 'function) (eval_bindings statement states)) ;create/call closure here as well?
+      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) states) return continue next break throw))
+      ((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -184,6 +185,9 @@
       ; cdddr bindings: func body
       ; figured we didn't need to initialize an environment since we did that in newenvironment
       ;what this does is that when we store the function, we store the function with the parameters and body, but I'm not sure how to handle the states?
+
+      ; why would we need so many cons?
+      ; (else declare-var (cons (cadr bindings) (cons (cons (cadr bindings) (caddr bindings)) states)) states))))
       (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
 
 ; main-function to take in main function
@@ -194,7 +198,7 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-var 'main environment 0 0)) error "No main function")
-      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) '((() ())) k null null null throw)))))))
+      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) '((() ())) k '() '() '() throw))))))) ; should '((() ())) be changed to the environment so it gets passed as the states?
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
