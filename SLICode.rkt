@@ -97,10 +97,6 @@
 (define catch-block caddr)
 (define finally-block cadddr)
 
-; possible helpers needed for function definitions and declarations?
-; function-definition
-; function-declaration
-
 ; assuming someone was using this for testing purposes, I commented this out
   ; ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
   ; (var x 10)
@@ -195,7 +191,7 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-function 'main environment)) error "No main function")
-      (else (call-func (lookup-function 'main environment) '() '() environment throw)))))
+      (else (call-func (lookup-function 'main environment) '() '() '() throw)))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
@@ -347,7 +343,7 @@
   (lambda (name environment)
     (cond
       ((null? environment) #f)
-      ((eq? (caar environment name) (cdar environment)))
+      ((equal? (caar environment) name) (cdar environment))
       (else (lookup-function name (cdr environment))))))
 
 ; ------------------------------------------------------------
