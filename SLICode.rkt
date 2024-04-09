@@ -1,6 +1,6 @@
 #lang racket
 ; require parser
-(require "simpleParser.rkt")
+(require "functionParser.rkt")
 
 
 ; ------------------------------------------------------------
@@ -59,8 +59,8 @@
     (cond
       ;What if we just read main differently than everything else, and don't store it as a function?
       ;I might be stupid on what the booleans check
-      ((null? statement) (eval-statement (function-lookup main) states return continue next break throw))
-      ((eq? (cadr statement) 'main) (call/cc (lambda (k) (main-function (statement) states k null null null null))))
+      ((null? statement) (eval-statement (lookup-function 'main) states return continue next break throw))
+      ((eq? (cadr statement) 'main) (call/cc (lambda (k) (main-function (statement states k null null null null)))))
       ((atom? (caar statement)) (eval-function (cdr statement) (eval-statement (car statement) states return continue next break throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
@@ -99,16 +99,15 @@
 
 ; possible helpers needed for function definitions, calls, and declarations?
 ; function-definition
-; function-call
 ; function-declaration
 
-  ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
-  (var x 10)
-  (var y 20)
-  (var z 30)
-  (var min1 (funcall min x y z))
-  (var min2 (funcall min z y x))
-  (function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))))
+  ; ((function min (x y z) ((if (< x y) (begin (if (< x z) (return x) (if (< z x) (return z)))) (if (> y z) (return z) (return y)))))
+  ; (var x 10)
+  ; (var y 20)
+  ; (var z 30)
+  ; (var min1 (funcall min x y z))
+  ; (var min2 (funcall min z y x))
+  ; (function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))))
 
 
 ; M_value Function
@@ -158,9 +157,10 @@
 ; M_value holds a new definition here to call functions, given the closure defined
 ; The closure defines the formal parameters, the body, and the bindings in scope of the function
 
-(define M_value (Change the name to more fitting)
+; changed to call-func because it's not the same as our M_value function above
+(define call-func
   (lambda (formal_params body bindings states throw)
-    (eval-statement body (newenvironment states bindings) '() '() '() '() throw)))
+    (eval-statement body (newenvironment (states bindings)) '() '() '() '() throw)))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its
@@ -172,8 +172,6 @@
     (eval_bindings (new-layer states) bindings)))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
-
-
 (define eval_bindings
   (lambda (states bindings)
     (cond
@@ -194,8 +192,12 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-function 'main environment)) error "No main function")
-      ; for else we need to get the body, bindings, and states still
-      (else (M_value (state-find 'main environment) body bindings states throw)))))
+      (else (call-func (state-find 'main environment) '() '() environment throw)))))
+
+; atom helper function since atom? got used in the outer M_state
+(define atom?
+  (lambda (x)
+    (not (pair? x))))
       
 
 ; ------------------------------------------------------------
@@ -338,12 +340,12 @@
 
 ; don't think we need this if we treat functions as variables
 ; lookup-function to find a called function
-; (define lookup-function
-  ; (lambda (name environment)
-    ; (cond
-      ; ((null? environment) #f)
-      ; ((eq? (caar environment name) (cdar environment)))
-      ; (else (lookup-function name (cdr environment))))))
+(define lookup-function
+  (lambda (name environment)
+    (cond
+      ((null? environment) #f)
+      ((eq? (caar environment name) (cdar environment)))
+      (else (lookup-function name (cdr environment))))))
 
 ; ------------------------------------------------------------
 

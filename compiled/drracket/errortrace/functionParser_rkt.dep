@@ -1,0 +1,1 @@
+("8.11.1" tarm64osx ("53e8af6a2d780027ab5b930f41e968818b9ce524" . "164a4e1c4a365f01db1ee7ef25ef3b9e4d83ad45") #"/Users/adriana/Documents/GitHub/CSDS345_SLI/lex.rkt" (collects #"drracket" #"private" #"drracket-errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))
