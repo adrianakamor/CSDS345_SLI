@@ -111,7 +111,7 @@
       ;((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
 
       ;alternative to call the function and look up its existence
-      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) states throw))
+      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) '() states throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -156,12 +156,7 @@
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state throw)))
         ; evaluate funcall expression, #4 on assignment
-        ; rewrite to make so that we "look" inside the function using evaluation, if statement to get main and function contents or go to global state
-        ; currently does not store a function
-        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (eval-expressions (caddr expression) state throw) state throw))
-        ; Might want to use this alternate
-        ; possible alternate 
-        ; ((eq? (car expression) 'funcall) (call-func (eval-expressions (cadr expression) state) (store function here)
+        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (eval-expressions (caddr expression) state throw) '() throw state))
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -183,7 +178,6 @@
 ; NOTE:
 ; To initialize parameters, should we add formal_params in lambda for newenvironment and eval_bindings passed form call-func?
 
-; changed to call-func because it's not the same as our M_value function above
 ; Need to add formal_params to the states list along with their 
 (define call-func
   (lambda (formal_params body bindings states throw)
@@ -193,7 +187,7 @@
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its own separate entity?
 (define newenvironment
   (lambda (states bindings)
-    (eval_bindings (new-layer states) bindings)))
+    (eval_bindings (new-layer states) bindings '() '() '())))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
 (define eval_bindings
@@ -201,9 +195,8 @@
     (cond
       ((null? (bindings function-closure)) (eval-program (extract-function function-closure) environment return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
-      
       ; should this else lookup the variable as well? Or is this redundant
-      (else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states)))))
+      (else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
 
       ; old else
       ; (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
@@ -423,7 +416,7 @@
           ((eq? (eval-expressions value state throw)  #t) (cons 'true (cdr lst)))
           ((eq? (eval-expressions value state throw)  #f) (cons 'false (cdr lst)))
           (else (cons (eval-expressions value state throw) (cdr lst))))
-      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst))))))
+      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst) throw)))))
 ; ------------------------------------------------------------
 
 
@@ -476,8 +469,6 @@
 ;  will take the value on the right of the = and first pass it into an expression function
 ;  will then take the result of the expression function and assign it to the variable on the left of the =
 ;  will return the updated state with an updated value for the var in question
-
-
 ;I did think of one problem; do we have to add return and other things to when we store the function?
 (define init-assign
   (lambda (vari expression states throw)
