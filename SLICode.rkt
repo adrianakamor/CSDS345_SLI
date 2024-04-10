@@ -39,6 +39,9 @@
   (lambda (syntax-tree states return continue next break throw)
     (cond
       ((null? syntax-tree) return)
+      ; main handling?
+      ; ((eq? (car syntax-tree) 'main) (eval-statement (car syntax-tree) states return continue
+                                     ; (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw))
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
@@ -70,7 +73,7 @@
               ((() ()))
            ) |#
 
-;this technically doesn't work because of how we structured var - theoretically, we shouldn't have to hard code inputs to var....but also whatever tbh
+;this technically doesn't work because of how we structured var - theoretically, we shouldn't have to hard code inputs to var
 (define create-closure
   (lambda (function-def state)
     (cons 'function (cons (cadr function-def) (cons (cddr function-def) (cons state '()))))))
@@ -98,7 +101,11 @@
       ; change to have ability to have formal parameters passed to function
       ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) states) return continue next break throw))
       ; change to eval expression
-      ((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
+      ; original
+      ;((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
+
+      ;alternative to call the function and look up its existence
+      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) states throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -146,6 +153,9 @@
         ; rewrite to make so that we "look" inside the function using evaluation, if statement to get main and function contents or go to global state
         ; currently does not store a function
         ((eq? (car expression) 'funcall) (call-func (lookup-function (cadr expression) state) (eval-expressions (caddr expression) state)))    
+
+        ; possible alternate
+        ; ((eq? (car expression) 'funcall) (call-func (eval-expressions (cadr expression) state) (store function here)
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -164,16 +174,16 @@
 ; call-func holds a new definition here to call functions, given the closure defined
 ; The closure defines the formal parameters, the body, and the bindings in scope of the function
 
+; NOTE:
+; To initialize parameters, should we add formal_params in lambda for newenvironment and eval_bindings passed form call-func?
+
 ; changed to call-func because it's not the same as our M_value function above
 (define call-func
   (lambda (formal_params body bindings states throw)
-    (eval-statement body (newenvironment (states bindings)) '() '() '() '() throw)))
+    (eval-statement body (newenvironment states bindings) '() '() '() '() throw)))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
-; Does this mean that the environment created for the function is attached to the state we already have, or is it its
-; own separate entity?
-
-;Do we need this since we're treating an environment as a state, essentially?
+; Does this mean that the environment created for the function is attached to the state we already have, or is it its own separate entity?
 (define newenvironment
   (lambda (states bindings)
     (eval_bindings (new-layer states) bindings)))
@@ -183,28 +193,21 @@
   (lambda (states bindings)
     (cond
       ((null? bindings) '())
-      ; should this be changes to cons on the execution of epressions with states and car of bindings?
+      ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
+      
+      ; should this else lookup the variable as well? Or is this redundant
+      (else declare-var (cons (cadr bindings) (cons (cons (cadr bindings) (caddr bindings)) states)) states))))
 
-      ;changed "eval_bindings" from (eval_bindings (declare-var (car bindings) states) (cdr bindings)) to
-      ; cadr bindings: func name
-      ; caddr bindings: func parameters
-      ; cdddr bindings: func body
-      ; figured we didn't need to initialize an environment since we did that in newenvironment
-      ;what this does is that when we store the function, we store the function with the parameters and body, but I'm not sure how to handle the states?
-
-      ; why would we need so many cons?
-      ; (else declare-var (cons (cadr bindings) (cons (cons (cadr bindings) (caddr bindings)) states)) states))))
-      (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
+      ; old else
+      ; (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
 
 ; main-function to take in main function
-;Change how we evaluate the main-function
-
 ;(lookup-var expression state 0 0)
 (define main-function
   (lambda (environment throw)
     (cond
       ((null? (lookup-var 'main environment 0 0)) error "No main function")
-      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) '((() ())) k '() '() '() throw))))))) ; should '((() ())) be changed to the environment so it gets passed as the states?
+      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) environment k '() '() '() throw)))))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
