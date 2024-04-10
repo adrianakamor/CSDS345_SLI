@@ -76,7 +76,13 @@
 ;this technically doesn't work because of how we structured var - theoretically, we shouldn't have to hard code inputs to var
 (define create-closure
   (lambda (function-def state)
-    (cons 'function (cons (cadr function-def) (cons (cddr function-def) (cons state '()))))))
+    (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
+
+(define append
+  (lambda (lis1 lis2)
+    (if (null? lis1)
+        lis2
+        (cons (car lis1) (append (cdr lis1) lis2)))))
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -131,7 +137,7 @@
         ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
         ((symbol? expression)        (lookup-var expression state 0 0))
-        ((pair? expression) expression)
+        ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) state) (eval-expressions (rightoperand expression) state)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
@@ -190,16 +196,19 @@
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
 (define eval_bindings
-  (lambda (states bindings)
+  (lambda (function-closure environment return throw states)
     (cond
-      ((null? bindings) '())
+      ((null? (bindings function-closure)) (eval-program (extract-function function-closure) environment return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       
       ; should this else lookup the variable as well? Or is this redundant
-      (else declare-var (cons (cadr bindings) (cons (cons (cadr bindings) (caddr bindings)) states)) states))))
+      (else declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states))))
 
       ; old else
       ; (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
+
+(define extract-function cadr)
+(define bindings car)
 
 ; main-function to take in main function
 ;(lookup-var expression state 0 0)
@@ -207,7 +216,7 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-var 'main environment 0 0)) error "No main function")
-      (else (call/cc (lambda (k) (eval-statement (lookup-var 'main environment 0 0) environment k '() '() '() throw)))))))
+      (else (call/cc (lambda (k) (eval_bindings (lookup-var 'main environment 0 0) (caddr (lookup-var 'main environment 0 0)) k throw environment)))))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
@@ -471,9 +480,16 @@
 ;I did think of one problem; do we have to add return and other things to when we store the function?
 (define init-assign
   (lambda (vari expression states)
-    (if (null? expression)
-        (error "Error in var statement!")
-        (update-states vari (eval-expressions (car expression) states) states))))
+    (cond
+      ((null? expression) (error "Error in var statement!"))
+      ((is-function? expression) (update-states vari (eval-expressions expression states) states))
+      (else (update-states vari (eval-expressions (car expression) states) states)))))
+
+(define is-function?
+  (lambda (expression)
+    (if (null? (cdr expression))
+        #f
+        #t)))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
