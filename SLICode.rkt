@@ -158,7 +158,7 @@
         ; evaluate funcall expression, #4 on assignment
         ; rewrite to make so that we "look" inside the function using evaluation, if statement to get main and function contents or go to global state
         ; currently does not store a function
-        ((eq? (car expression) 'funcall) (call-func (lookup-function (cadr expression) state) (eval-expressions (caddr expression) state)))    
+        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (eval-expressions (caddr expression) state) state throw))    
 
         ; possible alternate
         ; ((eq? (car expression) 'funcall) (call-func (eval-expressions (cadr expression) state) (store function here)
@@ -184,9 +184,10 @@
 ; To initialize parameters, should we add formal_params in lambda for newenvironment and eval_bindings passed form call-func?
 
 ; changed to call-func because it's not the same as our M_value function above
+; Need to add formal_params to the states list along with their 
 (define call-func
   (lambda (formal_params body bindings states throw)
-    (eval-statement body (newenvironment states bindings) '() '() '() '() throw)))
+    (eval-program body (newenvironment states bindings) '() '() '() '() throw)))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its own separate entity?
