@@ -156,7 +156,8 @@
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state throw)))
         ; evaluate funcall expression, #4 on assignment
-        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (eval-expressions (caddr expression) state throw) '() throw state))
+        ; eval-expressions as the environment won't work
+        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) '() throw state))
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -191,18 +192,36 @@
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
 (define eval_bindings
-  (lambda (function-closure environment return throw states)
+  (lambda (function-closure environment actual-params return throw states)
     (cond
-      ((null? (bindings function-closure)) (eval-program (extract-function function-closure) environment return '() '() '() throw))
+      ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
+      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) environment return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       ; should this else lookup the variable as well? Or is this redundant
-      (else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
+      ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
 
-      ; old else
-      ; (else (declare-var (cons (cadr bindings) (cons (cons (cons (cons (cadr bindings) '()) (caddr bindings)) states) (cdr bindings))) states)))))
+      ;new else, sets the bindings based on the input parameters, and then calls the function
+      (else (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params (new-layer environment) throw) return '() '() '() throw)))))
 
 (define extract-function cadr)
-(define bindings car)
+(define formal-params car)
+
+; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment
+;               of that function
+(define set-bindings
+  (lambda (formal-params actual-params environment throw)
+    (cond
+      ((and (null? formal-params) (null? actual-params)) environment)
+      (else (set-bindings (cdr formal-params) (cdr actual-params)
+                                                                   (declare-var (variable-pair (car formal-params) (car actual-params) environment throw) environment throw) throw)))))
+
+; variable-pair: Helper function, gives a simple variable definition to be passed to declare-var in set-bindings
+(define variable-pair
+  (lambda (var-name value environment throw)
+    (cons 'var (cons var-name (cons (eval-expressions value environment throw) '())))))
+
+; update-global: a helper variable that takes the changed environment of a funciton, and updates any variables necessary
+
 
 ; main-function to take in main function
 ;(lookup-var expression state 0 0)
@@ -210,7 +229,7 @@
   (lambda (environment throw)
     (cond
       ((null? (lookup-var 'main environment 0 0)) error "No main function")
-      (else (call/cc (lambda (k) (eval_bindings (lookup-var 'main environment 0 0) (caddr (lookup-var 'main environment 0 0)) k throw environment)))))))
+      (else (call/cc (lambda (k) (eval_bindings (lookup-var 'main environment 0 0) (caddr (lookup-var 'main environment 0 0)) '() k throw environment)))))))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
