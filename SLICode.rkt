@@ -61,8 +61,8 @@
   (lambda (statement states return continue next break throw)
     (cond
       ((null? statement) (main-function states throw))
-      ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) states throw) return continue next break throw))
-      ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) states throw) return continue next break throw))
+      ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
+      ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
 ;For clarity:
@@ -91,9 +91,9 @@
     (cond
       ((null? statement) (cdr states))
       ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next break throw))
-      ((eq? (car statement) 'var) (declare-var statement states throw))
-      ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) states throw))
-      ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) states throw)))
+      ((eq? (car statement) 'var) (declare-var statement return states throw))
+      ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) return states throw))
+      ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) return states throw)))
       ((eq? (car statement) 'if) (if-statement statement states return continue next break throw))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
                                            (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next break throw)))
@@ -105,13 +105,13 @@
       ; function and call function eval statements, #4 on assignment
       ; we need to initialize parameters inside function which is currently not in here
       ; change to have ability to have formal parameters passed to function
-      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) states throw) return continue next break throw))
+      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
       ; change to eval expression
       ; original
       ;((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
 
       ;alternative to call the function and look up its existence
-      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) '() states throw))
+      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) '() states return throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -128,7 +128,7 @@
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
 (define eval-expressions
-    (lambda (expression state throw)
+    (lambda (expression return state throw)
       (cond
         ((number? expression)        expression)
         ((boolean? expression)       expression)
@@ -138,26 +138,26 @@
         ((eq? expression 'false) #f)
         ((symbol? expression)        (lookup-var expression state 0 0))
         ((list? (operator expression)) expression)
-        ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
+        ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '-)
          (if (null? (cddr expression))
-          (- (eval-expressions (leftoperand expression) state throw))
-          (- (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw))))
-        ((eq? (operator expression) '*)   (* (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '/)   (quotient (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '%)   (remainder (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '==)  (eq? (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '!=)  (not (eq? (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw))))
-        ((eq? (operator expression) '<)   (< (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '>)   (> (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '<=)  (<= (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '>=)  (>= (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '&&)  (and (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) state throw) (eval-expressions (rightoperand expression) state throw)))
-        ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) state throw)))
+          (- (eval-expressions (leftoperand expression) return state throw))
+          (- (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw))))
+        ((eq? (operator expression) '*)   (* (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '/)   (quotient (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '%)   (remainder (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '==)  (eq? (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '!=)  (not (eq? (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw))))
+        ((eq? (operator expression) '<)   (< (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '>)   (> (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '<=)  (<= (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '>=)  (>= (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '&&)  (and (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
+        ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
         ; evaluate funcall expression, #4 on assignment
         ; eval-expressions as the environment won't work
-        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) '() throw state))
+        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
@@ -181,8 +181,8 @@
 
 ; Need to add formal_params to the states list along with their 
 (define call-func
-  (lambda (formal_params body bindings states throw)
-    (eval-program body (newenvironment states bindings) '() '() '() '() throw)))
+  (lambda (formal_params body bindings states return throw)
+    (call/cc (lambda (k) (eval-program body (newenvironment states bindings) k '() '() '() throw)))))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 ; Does this mean that the environment created for the function is attached to the state we already have, or is it its own separate entity?
@@ -201,24 +201,25 @@
       ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
 
       ;new else, sets the bindings based on the input parameters, and then calls the function
-      (else (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params (new-layer environment) throw) return '() '() '() throw)))))
+      (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params return (new-layer states) throw) k '() '() '() throw)))))))
 
 (define extract-function cadr)
 (define formal-params car)
 
 ; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment
 ;               of that function
+
 (define set-bindings
-  (lambda (formal-params actual-params environment throw)
+  (lambda (formal-params actual-params return environment throw)
     (cond
       ((and (null? formal-params) (null? actual-params)) environment)
       (else (set-bindings (cdr formal-params) (cdr actual-params)
-                                                                   (declare-var (variable-pair (car formal-params) (car actual-params) environment throw) environment throw) throw)))))
+                                                                   return (declare-var (variable-pair (car formal-params) (car actual-params) return environment throw) return environment throw) throw)))))
 
 ; variable-pair: Helper function, gives a simple variable definition to be passed to declare-var in set-bindings
 (define variable-pair
-  (lambda (var-name value environment throw)
-    (cons 'var (cons var-name (cons (eval-expressions value environment throw) '())))))
+  (lambda (var-name value return environment throw)
+    (cons 'var (cons var-name (cons (eval-expressions value return environment throw) '())))))
 
 ; update-global: a helper variable that takes the changed environment of a funciton, and updates any variables necessary
 
@@ -325,7 +326,7 @@
   (lambda (cblock error states return continue next break throw)
     (if (null? cblock)
         (next states)
-        (begin-block (caddr cblock) (declare-var (cons 'var (list (caadr cblock) error)) (new-layer states) throw) return continue next break throw))))
+        (begin-block (caddr cblock) (declare-var (cons 'var (list (caadr cblock) error)) return (new-layer states) throw) return continue next break throw))))
 
 ; helper to process finally from try-helper using CPS
 (define finally-helper
@@ -420,22 +421,29 @@
 ; Replace Functions
 ; ------------------------------------------------------------
 
+
+
+; add to replacer-state return
+
+
+
+
 ; replacer-state: Traverses the layers of the state, once it arrives at the layer to be altered, it goes to replacer-helper to alter that layer
 (define replacer-state
-  (lambda (layer-pair val state throw)
+  (lambda (layer-pair val return state throw)
     (if (zero? (car layer-pair))
-        (cons (cons (caar state) (list (replacer-layer state (cadr layer-pair) val (cadar state) throw))) (cdr state))
-        (cons (car state) (replacer-state (cons (- (car layer-pair) 1) (cdr layer-pair)) val (cdr state) throw)))))
+        (cons (cons (caar state) (list (replacer-layer state (cadr layer-pair) val (cadar state) return throw))) (cdr state))
+        (cons (car state) (replacer-state (cons (- (car layer-pair) 1) (cdr layer-pair)) val return (cdr state) throw)))))
 
 ; replacer-layer: Helper to replacer-state, changes the value of the variable at index
 (define replacer-layer
-  (lambda (state index value lst throw)
+  (lambda (state index value lst return throw)
     (if (= index 0)
         (cond
-          ((eq? (eval-expressions value state throw)  #t) (cons 'true (cdr lst)))
-          ((eq? (eval-expressions value state throw)  #f) (cons 'false (cdr lst)))
-          (else (cons (eval-expressions value state throw) (cdr lst))))
-      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst) throw)))))
+          ((eq? (eval-expressions value return state throw)  #t) (cons 'true (cdr lst)))
+          ((eq? (eval-expressions value return state throw)  #f) (cons 'false (cdr lst)))
+          (else (cons (eval-expressions value return state throw) (cdr lst))))
+      (cons (car lst) (replacer-layer state (- index 1) value (cdr lst) return throw)))))
 ; ------------------------------------------------------------
 
 
@@ -448,10 +456,12 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
+; add to update-states
+
 ; update-layers: Updates the state for the given val
 (define update-states
-  (lambda (vari val states throw)
-    (replacer-state (state-find vari states 0) val states throw)))
+  (lambda (vari val return states throw)
+    (replacer-state (state-find vari states 0) val return states throw)))
 
 ; create-pair: inserts a variable and value into the state given the variable expression and the state
 (define create-pair
@@ -475,12 +485,12 @@
 ;  returns the updated state with a new variable
 ;  checks if there's an equals sign/anything after the variable
 (define declare-var
-  (lambda (statement states throw)
+  (lambda (statement return states throw)
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
-          ((eq? (car statement) 'function) (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
+          ((eq? (car statement) 'function) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           (else
            (if (not (null? (cddr statement)))
-               (init-assign (cadr statement) (cddr statement) (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw)
+               (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw)
                (cons (create-pair (cadr statement) (car states) '()) (cdr states)))))))
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
@@ -490,11 +500,11 @@
 ;  will return the updated state with an updated value for the var in question
 ;I did think of one problem; do we have to add return and other things to when we store the function?
 (define init-assign
-  (lambda (vari expression states throw)
+  (lambda (vari expression return states throw)
     (cond
       ((null? expression) (error "Error in var statement!"))
-      ((is-function? expression) (update-states vari (eval-expressions expression states throw) states throw))
-      (else (update-states vari (eval-expressions (car expression) states throw) states throw)))))
+      ((is-function? expression) (update-states vari (eval-expressions expression return states throw) return states throw))
+      (else (update-states vari (eval-expressions (car expression) return states throw) return states throw)))))
 
 (define is-function?
   (lambda (expression)
@@ -525,7 +535,7 @@
 
 (define loop
   (lambda (condition body states return continue next break throw)
-    (if (eval-expressions condition states throw)
+    (if (eval-expressions condition return states throw)
         (loop condition body (eval-statement body states return continue
                                              (lambda (n) (while condition body (remove-top-layer n) return continue next break throw))
                                              break throw)
@@ -547,7 +557,7 @@
 (define if-statement
   (lambda (statement states return continue next break throw)
     (cond
-      ((eval-expressions (condition statement) states throw) (eval-statement (true-statement statement) states return continue
+      ((eval-expressions (condition statement) return states throw) (eval-statement (true-statement statement) states return continue
                                                                        (lambda (n) (next (remove-top-layer n))) break throw))
       ((not (null? (second-condition statement))) (eval-statement (false-statement statement) states return continue
                                                                   (lambda (n) (next (remove-top-layer n))) break throw))
