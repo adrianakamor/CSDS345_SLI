@@ -62,19 +62,12 @@
       ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
-;For clarity:
-; (create-closure '(function main () ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0))) '((() ()))) will return:
- #| (function main
-              (()
-               ((var min3 (funcall min y z x)) (if (== min1 min3) (if (== min1 min2) (if (== min2 min3) (return 1)))) (return 0)))
-              ((() ()))
-           ) |#
-
-;this technically doesn't work because of how we structured var - theoretically, we shouldn't have to hard code inputs to var
+; create-closure
 (define create-closure
   (lambda (function-def state)
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
+; append
 (define append
   (lambda (lis1 lis2)
     (if (null? lis1)
@@ -99,16 +92,8 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
-      ; function and call function eval statements, #4 on assignment
-      ; we need to initialize parameters inside function which is currently not in here
-      ; change to have ability to have formal parameters passed to function
       ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
-      ; change to eval expression
-      ; original
-      ;((eq? (car statement) 'funcall) (eval-expressions (cdr statement) states))
-
-      ;alternative to call the function and look up its existence
-      ((eq? (car statement) 'funcall) (call-func (lookup-function (cadr statement) states) (cddr statement) '() states return throw))
+      ((eq? (car statement) 'funcall) (call-func (lookup-var (cadr statement) states 0 0) (cddr statement) '() states return throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
 
@@ -153,7 +138,6 @@
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
         ; evaluate funcall expression, #4 on assignment
-        ; eval-expressions as the environment won't work
         ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
         (else (error "Type Unknown")))))
 
@@ -173,8 +157,6 @@
 ; call-func holds a new definition here to call functions, given the closure defined
 ; The closure defines the formal parameters, the body, and the bindings in scope of the function
 
-; NOTE:
-; To initialize parameters, should we add formal_params in lambda for newenvironment and eval_bindings passed form call-func?
 
 ; Need to add formal_params to the states list along with their 
 (define call-func
@@ -182,7 +164,6 @@
     (call/cc (lambda (k) (eval-program body (newenvironment states bindings) k '() '() '() throw)))))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
-; Does this mean that the environment created for the function is attached to the state we already have, or is it its own separate entity?
 (define newenvironment
   (lambda (states bindings)
     (eval_bindings (new-layer states) bindings '() '() '())))
@@ -194,18 +175,12 @@
       ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
       ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer environment) return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
-      ; should this else lookup the variable as well? Or is this redundant
-      ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
-
-      ;new else, sets the bindings based on the input parameters, and then calls the function
       (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params return (new-layer states) throw) k '() '() '() throw)))))))
 
 (define extract-function cadr)
 (define formal-params car)
 
-; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment
-;               of that function
-
+; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment of that function
 (define set-bindings
   (lambda (formal-params actual-params return environment throw)
     (cond
@@ -217,9 +192,6 @@
 (define variable-pair
   (lambda (var-name value return environment throw)
     (cons 'var (cons var-name (cons (eval-expressions value return environment throw) '())))))
-
-; update-global: a helper variable that takes the changed environment of a funciton, and updates any variables necessary
-
 
 ; main-function to take in main function
 ;(lookup-var expression state 0 0)
@@ -373,15 +345,6 @@
         (car lst)
         (lookup-layer (cdr lst) (- index 1)))))
 
-; don't think we need this if we treat functions as variables
-; lookup-function to find a called function
-(define lookup-function
-  (lambda (name environment)
-    (cond
-      ((null? environment) #f)
-      ((equal? (caar environment) name) (cdar environment))
-      (else (lookup-function name (cdr environment))))))
-
 ; ------------------------------------------------------------
 
 
@@ -417,13 +380,6 @@
 
 ; Replace Functions
 ; ------------------------------------------------------------
-
-
-
-; add to replacer-state return
-
-
-
 
 ; replacer-state: Traverses the layers of the state, once it arrives at the layer to be altered, it goes to replacer-helper to alter that layer
 (define replacer-state
@@ -495,7 +451,6 @@
 ;  will take the value on the right of the = and first pass it into an expression function
 ;  will then take the result of the expression function and assign it to the variable on the left of the =
 ;  will return the updated state with an updated value for the var in question
-;I did think of one problem; do we have to add return and other things to when we store the function?
 (define init-assign
   (lambda (vari expression return states throw)
     (cond
