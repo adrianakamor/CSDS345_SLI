@@ -1,4 +1,4 @@
-#lang racket
+ #lang racket
 ; require parser
 (require "functionParser.rkt")
 
@@ -39,9 +39,6 @@
   (lambda (syntax-tree states return continue next break throw)
     (cond
       ((null? syntax-tree) return)
-      ; main handling?
-      ; ((eq? (car syntax-tree) 'main) (eval-statement (car syntax-tree) states return continue
-                                     ; (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw))
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
@@ -195,7 +192,7 @@
   (lambda (function-closure environment actual-params return throw states)
     (cond
       ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
-      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) environment return '() '() '() throw))
+      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer environment) return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       ; should this else lookup the variable as well? Or is this redundant
       ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
