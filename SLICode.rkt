@@ -67,6 +67,22 @@
   (lambda (function-def state)
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
+; possible restructuring of create-closure using the idea of assigning everything to formal all at once
+; create final closure with helper that adds all actual parameters
+; (define create-closure
+  ; (lambda (function-def state)
+    ; (closure-helper (cadr function-def) (car (cadr function-def)) (cons state '()))))
+
+; to build the actual params first
+; we want to recurse through each actual parameter before feeding those into the formal parameters list by consing them on
+; (define closure-helper
+  ; (lambda (actual-params formal-params bindings)
+    ; (cond
+      ; ((null? actual-params)
+       ; (cons 'function (cons actual-params (append formal-params (cons (cons 'var (reverse bindings)) (cons state '())))))
+       ; (closure-helper (cdr actual-params) (cdr formal-params) (cons (cons (car formal-params) (eval-expressions (car actual-params) return state throw)) bindings))))))
+
+
 ; append
 (define append
   (lambda (lis1 lis2)
@@ -92,7 +108,7 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
-      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
+      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) return states throw) states return continue next break throw))
       ((eq? (car statement) 'funcall) (call-func (lookup-var (cadr statement) states 0 0) (cddr statement) '() states return throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
@@ -166,6 +182,10 @@
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 (define newenvironment
   (lambda (states bindings)
+    ; eval bindings takes 6 not 5, but gives a mismatch error if the below changes to 6
+    ; additionally there is an issue of empty values being passed into bindings instead of the return and throw values present
+    ; before call-func uses newenvironment
+    ; restructure to use existing return throw and states?
     (eval_bindings (new-layer states) bindings '() '() '())))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
