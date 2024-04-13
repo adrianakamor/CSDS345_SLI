@@ -1,4 +1,4 @@
-#lang racket
+ #lang racket
 ; require parser
 (require "functionParser.rkt")
 
@@ -38,7 +38,7 @@
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
-      ((null? syntax-tree) return)
+      ((null? syntax-tree) (return (cdr states)))
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
@@ -67,22 +67,6 @@
   (lambda (function-def state)
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
-; possible restructuring of create-closure using the idea of assigning everything to formal all at once
-; create final closure with helper that adds all actual parameters
-; (define create-closure
-  ; (lambda (function-def state)
-    ; (closure-helper (cadr function-def) (car (cadr function-def)) (cons state '()))))
-
-; to build the actual params first
-; we want to recurse through each actual parameter before feeding those into the formal parameters list by consing them on
-; (define closure-helper
-  ; (lambda (actual-params formal-params bindings)
-    ; (cond
-      ; ((null? actual-params)
-       ; (cons 'function (cons actual-params (append formal-params (cons (cons 'var (reverse bindings)) (cons state '())))))
-       ; (closure-helper (cdr actual-params) (cdr formal-params) (cons (cons (car formal-params) (eval-expressions (car actual-params) return state throw)) bindings))))))
-
-
 ; append
 (define append
   (lambda (lis1 lis2)
@@ -109,9 +93,8 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
-      ((eq? (car statement) 'funcall) (call-func (lookup-var (cadr statement) states 0 0) (cddr statement) '() states return throw))
-      (else
-       (eval-statement (cdr statement) states return continue next break throw)))))
+      ((eq? (car statement) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr statement) states 0 0) (caddr (lookup-var (cadr statement) states 0 0)) (cddr statement) k throw states))))
+       (eval-statement (cdr statement) states return continue next break throw))))
 
 ; Abstraction helpers for the eval-statement function
 ; loop-condition and loop-body give the cadr and the caddr of the statement for interpretation in the while-loop
