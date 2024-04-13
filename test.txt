@@ -1,11 +1,14 @@
 function main() {
-  function h() {
-    return 10;
-  }
+  var x = 10;
+  var y = 20;
+  var z = 30;
+  var min = 0;
 
-  function g() {
-    return 100;
-  }
-
-  return g() - h();
+  if (x < y)
+    min = x;
+  else
+    min = y;
+  if (min > z)
+    min = z;
+  return min;
 }

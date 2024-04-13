@@ -1,4 +1,4 @@
- #lang racket
+#lang racket
 ; require parser
 (require "functionParser.rkt")
 
@@ -181,16 +181,16 @@
 ; Need to add formal_params to the states list along with their 
 (define call-func
   (lambda (formal_params body bindings states return throw)
-    (call/cc (lambda (k) (eval-program body (newenvironment states bindings) k '() '() '() throw)))))
+    (call/cc (lambda (k) (eval-program body (newenvironment states bindings return throw) k '() '() '() throw)))))
 
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 (define newenvironment
-  (lambda (states bindings)
+  (lambda (states bindings return throw)
     ; eval bindings takes 6 not 5, but gives a mismatch error if the below changes to 6
     ; additionally there is an issue of empty values being passed into bindings instead of the return and throw values present
     ; before call-func uses newenvironment
     ; restructure to use existing return throw and states?
-    (eval_bindings (new-layer states) bindings '() '() '())))
+    (call/cc (lambda (k) (eval_bindings (new-layer states) bindings '() k throw states)))))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
 (define eval_bindings
