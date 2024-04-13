@@ -108,7 +108,7 @@
       ((eq? (car statement) 'continue) (continue-helper states continue))
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
-      ((eq? (car statement) 'function) (eval-statement (declare-var (create-closure (car statement) states) return states throw) states return continue next break throw))
+      ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
       ((eq? (car statement) 'funcall) (call-func (lookup-var (cadr statement) states 0 0) (cddr statement) '() states return throw))
       (else
        (eval-statement (cdr statement) states return continue next break throw)))))
@@ -158,7 +158,7 @@
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
         ; evaluate funcall expression, #4 on assignment
-        ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
+        ((eq? (car expression) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) k throw state))))
         (else (error "Type Unknown")))))
 
 ; Helper methods for eval-expressions for abstraction
