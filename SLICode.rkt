@@ -99,7 +99,7 @@
       ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next break throw))
       ((eq? (car statement) 'var) (declare-var statement return states throw))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) return states throw))
-      ((eq? (car statement) 'return) (return (eval-expressions (cadr statement) return states throw)))
+      ((eq? (car statement) 'return) (return (is-boolean? (eval-expressions (cadr statement) return states throw) states return throw)))
       ((eq? (car statement) 'if) (if-statement statement states return continue next break throw))
       ((eq? (car statement) 'while) (while (loop-condition statement) (loop-body statement)
                                            (call/cc (lambda (k) (while (loop-condition statement) (loop-body statement) states return k next break throw)))
@@ -122,6 +122,12 @@
 (define catch-block caddr)
 (define finally-block cadddr)
 
+(define is-boolean?
+  (lambda (expression state return throw)
+    (cond
+      ((eq? (eval-expressions expression return state throw)  #t) 'true)
+      ((eq? (eval-expressions expression return state throw)  #f) 'false)
+      (else expression))))
 
 ; M_value Function
 ; eval-expressions: reads through each statement and determines which expressions are used and how those expressions should be treated
@@ -130,11 +136,9 @@
       (cond
         ((number? expression)        expression)
         ((boolean? expression)       expression)
-        ((eq? expression #t)     #t)
         ((eq? expression 'true)  #t)
-        ((eq? expression #f)     #f)
         ((eq? expression 'false) #f)
-        ((symbol? expression)        (lookup-var expression state 0 0))
+        ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '-)
