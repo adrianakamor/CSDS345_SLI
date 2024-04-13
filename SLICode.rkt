@@ -157,6 +157,7 @@
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
         ; evaluate funcall expression, #4 on assignment
         ; eval-expressions as the environment won't work
+        ; cddr expression is the actual params
         ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
         (else (error "Type Unknown")))))
 
@@ -191,6 +192,7 @@
     (eval_bindings (new-layer states) bindings '() '() '())))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
+;actual-params defined here
 (define eval_bindings
   (lambda (function-closure environment actual-params return throw states)
     (cond
@@ -199,9 +201,7 @@
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       ; should this else lookup the variable as well? Or is this redundant
       ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
-
-      ;new else, sets the bindings based on the input parameters, and then calls the function
-      (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params return (new-layer states) throw) k '() '() '() throw)))))))
+      (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params '() return (new-layer states) throw) k '() '() '() throw)))))))
 
 (define extract-function cadr)
 (define formal-params car)
@@ -209,12 +209,22 @@
 ; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment
 ;               of that function
 
+; set-bindings: should create 
+; set-bindings by putting all the values on one side first with no variables...
+; 
 (define set-bindings
-  (lambda (formal-params actual-params return environment throw)
+  (lambda (formal-params actual-params actual-values return environment throw)
     (cond
-      ((and (null? formal-params) (null? actual-params)) environment)
-      (else (set-bindings (cdr formal-params) (cdr actual-params)
-                                                                   return (declare-var (variable-pair (car formal-params) (car actual-params) return environment throw) return environment throw) throw)))))
+      ((null? actual-params) (cons (cons (cons formal-params (caar environment)) (cons (reverse actual-values) (cdr (cdr (car environment))))) (cdr environment)))
+      (else (set-bindings formal-params (cdr actual-params)
+                                                                   (cons (lookup-var (car actual-params) environment 0 0) actual-values) return environment throw)))))
+
+(define reverse
+  (lambda (lst)
+  (if (null? lst)                    
+      '()                            
+      (append (reverse (cdr lst)) 
+              (list (car lst)))))) 
 
 ; variable-pair: Helper function, gives a simple variable definition to be passed to declare-var in set-bindings
 (define variable-pair
