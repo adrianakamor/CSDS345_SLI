@@ -1,6 +1,6 @@
  #lang racket
 ; require parser
-(require "functionParser.rkt")
+(require "classParser.rkt")
 
 
 ; ------------------------------------------------------------
@@ -58,6 +58,7 @@
   (lambda (statement states return continue next break throw)
     (cond
       ((null? statement) (main-function states throw))
+      ; ((eq? (car (car statement)) 'class) ((eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw)))
       ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
       ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
@@ -65,6 +66,9 @@
 ; create-closure
 (define create-closure
   (lambda (function-def state)
+    ; do we want to create a losure within a closure, aka keep the function closure creation but also
+    ; have a condition where if 'class then enclose?
+    ; (cons 'class (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
 ; append
@@ -93,6 +97,7 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
+      ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
       ((eq? (car statement) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr statement) states 0 0) (caddr (lookup-var (cadr statement) states 0 0)) (cddr statement) k throw states))))
        (eval-statement (cdr statement) states return continue next break throw))))
 
@@ -121,6 +126,7 @@
         ((boolean? expression)       expression)
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
+        ; ((eq? expression 'this) state)
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -148,6 +154,22 @@
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
+
+; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+; Assignment 4-Specific Helper Functions
+; ------------------------------------------------------------
+; ------------------------------------------------------------
+
+; I think most new definitions could fall under syntax with some object definitions here
+
+; object definition
+; (define new-obj
+  ; (lambda (field call)
+    ; (cond
+      ; ((eq? call 'get) field)
+      ; (else (error "Type Unknown")))))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -343,6 +365,12 @@
 ; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
 (define lookup-var
   (lambda (var states layer index)
+    ; restructure to allow for super variables here?
+    ; (cond
+      ; ((eq? var super) "get the variables from the superclass")
+      ; ((eq? -1 (state-find var states 0))
+       ; (error "Variable requested not found in the state!")
+        ; (lookup-var-helper states (state-find var states 0)))))
     (if (eq? -1 (state-find var states 0))
         (error "Variable requested not found in the state!")
         (lookup-var-helper states (state-find var states 0)))))
@@ -479,6 +507,8 @@
     (if (null? (cdr expression))
         #f
         #t)))
+
+; new function to handle class syntax including new, dot, etc.
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
