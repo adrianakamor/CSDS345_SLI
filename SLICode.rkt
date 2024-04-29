@@ -116,7 +116,8 @@
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
       ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
-      ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
+      ; do we also need to cover dot in statements?
+      ; ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
       ((eq? (car statement) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr statement) states 0 0) (caddr (lookup-var (cadr statement) states 0 0)) (cddr statement) k throw states))))
        (eval-statement (cdr statement) states return continue next break throw))))
 
@@ -412,21 +413,18 @@
 ; Returns either a pair detailing the layer and index of the desired variable, or -1 to signify that the variable wasn't found in the state
 (define lookup-var
   (lambda (var states layer index)
-    ; restructure to allow for super variables here?
-    ; (cond
-      ; ((eq? var super) "get the variables from the superclass")
-      ; ((eq? -1 (state-find var states 0))
-       ; (error "Variable requested not found in the state!")
+    (cond
+      ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
+                                     ; change to state find
+                                     (lookup-var var (cdr states) (+ layer 1) index)
+                                     (lookup-var var (caddr (car states)) 0 0 )))))
+      ((eq? -1 (state-find var states 0))
+       (error "Variable requested not found in the state!")
+        (lookup-var-helper states (state-find var states 0))))))
+    ; old lookup-var statements
+    ; (if (eq? -1 (state-find var states 0))
+        ; (error "Variable requested not found in the state!")
         ; (lookup-var-helper states (state-find var states 0)))))
-    ; logic to look through each layer of states to get variables from superclass
-    ; goal is the iterate through each layer until super states are found and can be used
-    ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
-                  ; replace with state find commented above                 
-                  (lookup-var var (cdr states) (+ layer 1) index)
-                  (lookup-var var (caddr (car states)) 0 0 )))))
-    (if (eq? -1 (state-find var states 0))
-        (error "Variable requested not found in the state!")
-        (lookup-var-helper states (state-find var states 0)))))
 
 ; lookup-var-helper traverses through all layers of the state, outsourcing to lookup-layer for each individual layer
 (define lookup-var-helper
