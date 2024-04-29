@@ -1,12 +1,13 @@
- #lang racket
+
+#lang racket
 ; require parser
-(require "classParser.rkt")
+(require "functionParser.rkt")
 
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; CSDS 345 - OO Interpreter
+; CSDS 345 - Imperative Language Interpreter
 ; Group 6: Noah Henriques, Stephen Hogeman, Adriana Kamor
 
 ; ------------------------------------------------------------
@@ -18,13 +19,12 @@
 
 ; Interpret Function
 ; interpret: interprets the file and passes it to an evaluator
-; tells the interpreter which class has the main method
 (define interpret
-  (lambda (filename main-class)
+  (lambda (filename)
     ;the program is initialized with a return statement
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
-    (call/cc (lambda (k) (eval-environment (parser filename) main-class '((() ())) k null null null null)))))
+    (call/cc (lambda (k) (eval-function (parser filename) '((() ())) k null null null null)))))
 
 
 ; Parse Function
@@ -35,6 +35,7 @@
 ;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ;  (formatted as ((x y...)(5 7...))
 
+; update to be called/initialized for main function
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
@@ -54,22 +55,21 @@
 
 ; Outer_M_state Function:
 ; This function runs through the program once, defines the closures of the functions, and the global variables in the base layer of the state
-(define eval-environment
+(define eval-function
   (lambda (statement states return continue next break throw)
     (cond
-      ((null? statement) (states))
-      ((eq? (car (car statement 'class)) (eval-environment (cdr statement) (declare-var (create-closure (car statement) states) main-class return states throw) return continue next break throw)))
-      ((eq? (car (car statement)) 'function) (eval-environment (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
-      ((eq? (car (car statement)) 'var) (eval-environment (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
-      (else (eval-environment (cdr statement) states return continue next break throw)))))
+      ((null? statement) (main-function states throw))
+      ; ((eq? (car (car statement)) 'class) ((eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw)))
+      ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
+      ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
+      (else (eval-function (cdr statement) states return continue next break throw)))))
 
 ; create-closure
 (define create-closure
   (lambda (function-def state)
     ; do we want to create a losure within a closure, aka keep the function closure creation but also
     ; have a condition where if 'class then enclose?
-    ; closure contains 'class, class it extends (or itself), and all of the functions inside of it
-    (cons 'class (cons (cadr function-def) (append (lambda (k) (eval-environment (cddr function-def) state k null null null null)) (cons state '()))))))
+    ; (cons 'class (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
 ; append
@@ -165,28 +165,12 @@
 
 ; I think most new definitions could fall under syntax with some object definitions here
 
-; class-definition
-; Method will be called to define all classes
-;(define class-definition
-;  (lambda (statement states return throw)
-;    (cond
-;      ((eq? class (car statement)) (declare-var (class-closure statement states return throw) return states throw))
-;      (else (error "Unknown class type!")))))
-
-; class-closure defines the class closure that will be used to add classes to the global state
-; the return of this (since it is being declared in declare-var) is of (class name closure)
-; (define class-closure
-;   (lambda (statement states return throw)
-;     '(class (cadr statement) (declare-var (eval-function (cadddr statement) (class-extension (caddr statement) state return throw) return '() '() '() throw)
-
-; class-extension
-; This method is called if the class that is being defined extends another class, as the methods and parameters of that class are needed
-; for the closure of this one
-; (define class-extension
-;   (lambda (extension state return throw)
-;     (cond
-;       ((null? extension) state)
-;       (else (get-closure (lookup-var (cadr extension) state 0 0))))))
+; object definition
+; (define new-obj
+  ; (lambda (field call)
+    ; (cond
+      ; ((eq? call 'get) field)
+      ; (else (error "Type Unknown")))))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -502,10 +486,6 @@
   (lambda (statement return states throw)
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
           ((eq? (car statement) 'function) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
-          ; stores the closure of the class, which corresponds to the name of the class
-          ((eq? (car statement) 'class) (init-assign))
-          ; should look up the class that it references, and assign it a copy of the functions of that class
-          ((eq? (car statement) 'new))
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw)
