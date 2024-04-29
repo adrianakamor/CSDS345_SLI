@@ -24,7 +24,7 @@
     ;the program is initialized with a return statement
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
-    (call/cc (lambda (k) (eval-class (parser filename) main-class '((() ())) k null null null null)))))
+    (call/cc (lambda (k) (eval-class (parser filename) '((() ())) main-class k null null null null)))))
 
 
 ; Parse Function
@@ -61,7 +61,7 @@
    (lambda (syntax-tree states main-class return continue next break throw)
      (cond
        ((null? syntax-tree) (main-function (main-function-lookup main-class states) states throw))
-       ((eq? (car (car syntax-tree) 'class)) (eval-class (cdr syntax-tree) (declare-var (create-closure (car syntax-tree) states) main-class return states throw) return continue next break throw))
+       ((eq? (caar syntax-tree) 'class) (eval-class (cdr syntax-tree) (declare-var (create-closure (car syntax-tree) states) return states throw) main-class return continue next break throw))
        (else (eval-class (cdr syntax-tree) states main-class return continue next break throw)))))
 
 
@@ -70,7 +70,7 @@
 (define eval-function
   (lambda (statement states return continue next break throw)
     (cond
-      ((null? statement) (states))
+      ((null? statement) states)
       ((eq? (car (car statement)) 'function) (eval-function (cdr statement) (declare-var (create-closure (car statement) states) return states throw) return continue next break throw))
       ;Since the only static function we have to worry about is the main method, I think we can treat any static-function call as a regular method
       ; It may be best to, when the main method is found, kick it out and give it its own environment like a class
@@ -81,11 +81,13 @@
 ; create-closure
 (define create-closure
   (lambda (function-def state)
+    (cond 
     ; do we want to create a losure within a closure, aka keep the function closure creation but also
     ; have a condition where if 'class then enclose?
     ; closure contains 'class, name of the class either (extends *parent class*) or nothing, and all of the functions inside of it
-    (cons 'class (cons (cadr function-def) (append (lambda (k) (eval-function (cddr function-def) state k null null null null)) (cons state '()))))
-    (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
+    ;((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
+      ((eq? (car function-def) 'class) (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '())))))
+      (else (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))))
 
 ; append
 (define append
@@ -143,13 +145,12 @@
         ((boolean? expression)       expression)
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
-        ; reference class this 
-        ((eq? expression 'this) state)
+        ; ((eq? expression 'this) state)
         ; implementing expression logic for dot operator
-        ; goal is to check is variable state is within the requested object using helper methods 
+        ; goal is to check is variable state is within the requested object
         ; also gets called in eval statement for when a dot operation statement is being evaluated
-        ((eq? (car expression) 'dot)
-         (dot-operation (cadr expression) (caddr expression) state return throw))
+        ((eq? (car expression) 'dot) (pair? (eval-expressions (cadr expression return state throw)) (pair? (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))
+                                            (cdr (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))))
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -188,30 +189,11 @@
 ; class-extension
 ; This method is called if the class that is being defined extends another class, as the methods and parameters of that class are needed
 ; for the closure of this one
-; (define class-extension
-;   (lambda (extension state return throw)
-;     (cond
-;       ((null? extension) state)
-;       (else (get-closure (lookup-var (cadr extension) state 0 0))))))
-
-; dot-operation
-; helper function to evaluate the operation
-(define dot-operation
-  (lambda (object method state return throw)
+(define class-extension
+  (lambda (extension state return throw)
     (cond
-      ((procedure? object) (object method))
-      ((pair? object) (cdr (dot-lookup method object state)))
-      (else (error "No object")))))
-                            
-; dot-lookup
-; helper lookup function for checking if method is within object parameters
-; mirrors general structure of main-function-lookup to use lookup-function as a lookup helper
-(define dot-lookup
-  (lambda (method object state)
-    (cond
-      ((null? object) #f)
-      ((eq? (caar object) method) (lookup-var (cdar object) state 0 0))
-      (else (dot-lookup method (cdr object) state)))))
+      ((null? extension) state)
+      (else (lookup-var (cadr extension) state 0 0)))))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -282,7 +264,7 @@
       (else (call/cc (lambda (k) (eval_bindings main-func (caddr main-func) '() k throw environment)))))))
 
 (define main-function-lookup
-  (lambda (environment main-class)
+  (lambda (main-class environment)
     ((lookup-var 'main (lookup-var main-class environment 0 0) 0 0))))
 
 ; atom helper function since atom? got used in the outer M_state
@@ -539,7 +521,7 @@
           ; stores the closure of the class (includes the super class if it exists and all functions/instance methods inside that class), which corresponds to the name of the class
           ; or
           ; stores the closure of the function
-          ((or (eq? ((car statement) 'function)) (eq? ((car statement) 'class))) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
+          ((or (eq? (car statement) 'function) (eq? (car statement) 'class)) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           ; should look up the class that it references, and assign it a copy of the functions of that class
           ((eq? (car statement) 'new))
           (else
