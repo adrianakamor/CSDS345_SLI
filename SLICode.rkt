@@ -78,6 +78,7 @@
       ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
+; should we also take in the class as a lambda variable here for class information/exncapsulation?
 ; create-closure
 (define create-closure
   (lambda (function-def state)
@@ -151,6 +152,8 @@
         ; also gets called in eval statement for when a dot operation statement is being evaluated
         ((eq? (car expression) 'dot)
          (dot-operation (cadr expression) (caddr expression) state return throw))
+        ; this
+        ((eq? expression 'this) (car state))
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -195,12 +198,15 @@
       ((null? extension) state)
       (else (lookup-var (cadr extension) state 0 0)))))
 
+; may need to take in class as lamba variable here as well 
+
 ; dot-operation
 ; helper function to evaluate the operation
 (define dot-operation
   (lambda (object method state return throw)
     (cond
       ((procedure? object) (object method))
+      ((eq? object 'this) (dot-lookup method (car state) state))
       ((pair? object) (cdr (dot-lookup method object state)))
       (else (error "No object")))))
                             
@@ -235,10 +241,7 @@
 ; newenvironment should create a new environment for the function to act upon based on the bindings in scope
 (define newenvironment
   (lambda (states bindings return throw)
-    ; eval bindings takes 6 not 5, but gives a mismatch error if the below changes to 6
-    ; additionally there is an issue of empty values being passed into bindings instead of the return and throw values present
-    ; before call-func uses newenvironment
-    ; restructure to use existing return throw and states?
+    ; add this in here to mark environment?
     (call/cc (lambda (k) (eval_bindings (new-layer states) bindings '() k throw states)))))
 
 ; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
@@ -418,6 +421,7 @@
                                      ; change to state find
                                      (lookup-var var (cdr states) (+ layer 1) index)
                                      (lookup-var var (caddr (car states)) 0 0 )))))
+      ((eq? var 'this) (car states))
       ((eq? -1 (state-find var states 0))
        (error "Variable requested not found in the state!")
         (lookup-var-helper states (state-find var states 0))))))
