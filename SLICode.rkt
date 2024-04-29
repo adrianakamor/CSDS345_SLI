@@ -402,6 +402,7 @@
     ; logic to look through each layer of states to get variables from superclass
     ; goal is the iterate through each layer until super states are found and can be used
     ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
+                  ; replace with state find commented above                 
                   (lookup-var var (cdr states) (+ layer 1) index)
                   (lookup-var var (caddr (car states)) 0 0 )))))
     (if (eq? -1 (state-find var states 0))
