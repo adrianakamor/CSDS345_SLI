@@ -84,6 +84,7 @@
     ; do we want to create a losure within a closure, aka keep the function closure creation but also
     ; have a condition where if 'class then enclose?
     ; closure contains 'class, name of the class either (extends *parent class*) or nothing, and all of the functions inside of it
+    ((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
     (cons 'class (cons (cadr function-def) (append (lambda (k) (eval-function (cddr function-def) state k null null null null)) (cons state '()))))
     (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))
 
@@ -114,6 +115,7 @@
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
       ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
+      ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
       ((eq? (car statement) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr statement) states 0 0) (caddr (lookup-var (cadr statement) states 0 0)) (cddr statement) k throw states))))
        (eval-statement (cdr statement) states return continue next break throw))))
 
@@ -143,6 +145,11 @@
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
         ; ((eq? expression 'this) state)
+        ; implementing expression logic for dot operator
+        ; goal is to check is variable state is within the requested object
+        ; also gets called in eval statement for when a dot operation statement is being evaluated
+        ((eq? (car expression) 'dot) (pair? (eval-expressions (cadr expression return state throw)) (pair? (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))
+                                            (cdr (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))))
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -391,6 +398,11 @@
       ; ((eq? -1 (state-find var states 0))
        ; (error "Variable requested not found in the state!")
         ; (lookup-var-helper states (state-find var states 0)))))
+    ; logic to look through each layer of states to get variables from superclass
+    ; goal is the iterate through each layer until super states are found and can be used
+    ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
+                  (lookup-var var (cdr states) (+ layer 1) index)
+                  (lookup-var var (caddr (car states)) 0 0 )))))
     (if (eq? -1 (state-find var states 0))
         (error "Variable requested not found in the state!")
         (lookup-var-helper states (state-find var states 0)))))
