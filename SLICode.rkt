@@ -145,12 +145,11 @@
         ((boolean? expression)       expression)
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
-        ; ((eq? expression 'this) state)
         ; implementing expression logic for dot operator
-        ; goal is to check is variable state is within the requested object
+        ; goal is to check is variable state is within the requested object using helper methods 
         ; also gets called in eval statement for when a dot operation statement is being evaluated
-        ((eq? (car expression) 'dot) (pair? (eval-expressions (cadr expression return state throw)) (pair? (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))
-                                            (cdr (caddr expression) (cdr (eval-expressions (cadr expression) return state throw)))))
+        ((eq? (car expression) 'dot)
+         (dot-operation (cadr expression) (caddr expression) state return throw))
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -194,6 +193,26 @@
     (cond
       ((null? extension) state)
       (else (lookup-var (cadr extension) state 0 0)))))
+
+; dot-operation
+; helper function to evaluate the operation
+(define dot-operation
+  (lambda (object method state return throw)
+    (cond
+      ((procedure? object) (object method))
+      ((pair? object) (cdr (dot-lookup method object state)))
+      (else (error "No object")))))
+                            
+; dot-lookup
+; helper lookup function for checking if method is within object parameters
+; mirrors general structure of main-function-lookup to use lookup-function as a lookup helper
+(define dot-lookup
+  (lambda (method object state)
+    (cond
+      ((null? object) #f)
+      ((eq? (caar object) method) (lookup-var (cdar object) state 0 0))
+      (else (dot-lookup method (cdr object) state)))))
+
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
