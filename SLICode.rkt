@@ -6,7 +6,7 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; CSDS 345 - Imperative Language Interpreter
+; CSDS 345 - OO Interpreter
 ; Group 6: Noah Henriques, Stephen Hogeman, Adriana Kamor
 
 ; ------------------------------------------------------------
@@ -24,6 +24,7 @@
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
     (call/cc (lambda (k) (eval-function (parser filename) '((() ())) k null null null null)))))
+; would need to be (call/cc (lambda (k) (eval-program-new (parser filename) '((() ())) k null null null null)))))
 
 
 ; Parse Function
@@ -42,6 +43,14 @@
       (else 
        (eval-program (cdr syntax-tree) (eval-statement (car syntax-tree) states return continue
                                      (lambda (k) (begin-block (cdr syntax-tree) k return continue next break throw)) break throw) return continue next break throw)))))
+
+; eval-program-new
+; General logic for how the program should run through the classes
+; (define eval-program-new
+;   (lambda (syntax-tree states return continue next break throw)
+;     ((null? syntax-tree) (return (cdr states)))
+;     (else
+;       (eval-program-new (cdr syntax-tree) (class-definition (car syntax-tree) states return throw))))))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -164,12 +173,28 @@
 
 ; I think most new definitions could fall under syntax with some object definitions here
 
-; object definition
-; (define new-obj
-  ; (lambda (field call)
-    ; (cond
-      ; ((eq? call 'get) field)
-      ; (else (error "Type Unknown")))))
+; class-definition
+; Method will be called to define all classes
+;(define class-definition
+;  (lambda (statement states return throw)
+;    (cond
+;      ((eq? class (car statement)) (declare-var (class-closure statement states return throw) return states throw))
+;      (else (error "Unknown class type!")))))
+
+; class-closure defines the class closure that will be used to add classes to the global state
+; the return of this (since it is being declared in declare-var) is of (class name closure)
+; (define class-closure
+;   (lambda (statement states return throw)
+;     '(class (cadr statement) (declare-var (eval-function (cadddr statement) (class-extension (caddr statement) state return throw) return '() '() '() throw)
+
+; class-extension
+; This method is called if the class that is being defined extends another class, as the methods and parameters of that class are needed
+; for the closure of this one
+; (define class-extension
+;   (lambda (extension state return throw)
+;     (cond
+;       ((null? extension) state)
+;       (else (get-closure (lookup-var (cadr extension) state 0 0))))))
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
