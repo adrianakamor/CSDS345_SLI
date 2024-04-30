@@ -17,13 +17,10 @@
 ; ------------------------------------------------------------
 
 ; Interpret Function
-; interpret: interprets the file and passes it to an evaluator
-; tells the interpreter which class has the main method
+;  interpret: interprets the file and passes it to an evaluator
+;  tells the interpreter which class has the main method
 (define interpret
   (lambda (filename main-class)
-    ;the program is initialized with a return statement
-    ; we need to change this somehow to take into account the idea of functions instead of the the program
-    ; being initialized with return or have it so that we use eval program instead
     (call/cc (lambda (k) (eval-class (parser filename) '((() ())) (string->symbol main-class) k null null null null)))))
 
 
@@ -51,10 +48,10 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; eval-program-new
-; General logic for how the program should run through the classes
+; Outer Definitions
+; ------------------------------------------------------------
 
-; I don't know if we don't actually need all of these continuation functions
+; eval-class
 ; This runs through all of the classes, setting their closures as necessary for each and giving the main method a unique lookup.
  (define eval-class
    (lambda (syntax-tree states main-class return continue next break throw)
@@ -78,27 +75,27 @@
       ((eq? (car (car statement)) 'var) (eval-function (cdr statement) (declare-var (car statement) return states throw) return continue next break throw))
       (else (eval-function (cdr statement) states return continue next break throw)))))
 
-; should we also take in the class as a lambda variable here for class information/exncapsulation?
 ; create-closure
+; This function creates a closure based on the function definition and state
 (define create-closure
   (lambda (function-def state)
     (cond 
-    ; do we want to create a losure within a closure, aka keep the function closure creation but also
-    ; have a condition where if 'class then enclose?
-    ; closure contains 'class, name of the class either (extends *parent class*) or nothing, and all of the functions inside of it
-      ; something along the lines of:
-      ; lambda (parent (if (eq? (caddr function-def) 'extends) ("function definition" '()))) and replace "function definition with appropriate car/cdr call
-    ;((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
+      ;((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
       ((eq? (car function-def) 'class)
        (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '()))))) ; change '() to take in the parent class mentioned in the comments above?
       (else (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))))
+; ------------------------------------------------------------
 
 ; append
+; basic helper function for appending 2 given lists
 (define append
   (lambda (lis1 lis2)
     (if (null? lis1)
         lis2
         (cons (car lis1) (append (cdr lis1) lis2)))))
+
+; M Functions
+; ------------------------------------------------------------
 
 ; M_state Function
 ; eval-statement: reads through each statement and determines how it should be treated depending on the keywords
@@ -108,6 +105,7 @@
       ((null? statement) (cdr states))
       ((eq? (car statement) 'begin) (begin-block (cdr statement) (new-layer states) return continue next break throw))
       ((eq? (car statement) 'var) (declare-var statement return states throw))
+      ((and (eq? (car statement) 'var) (list? (caddr statement)) (eq? (caaddr statement) 'new)) (error "Invalid new use"))
       ((eq? (car statement) '=) (init-assign (cadr statement) (cddr statement) return states throw))
       ((eq? (car statement) 'return) (return (is-boolean? (eval-expressions (cadr statement) return states throw) states return throw)))
       ((eq? (car statement) 'if) (if-statement statement states return continue next break throw))
@@ -119,9 +117,7 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
-      ; think we can get rid of these commments and don't need to implement them
       ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
-      ; do we also need to cover dot in statements?
       ; ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
       ((eq? (car statement) 'funcall) (call/cc (lambda (k) (eval_bindings (lookup-var (cadr statement) states 0 0) (caddr (lookup-var (cadr statement) states 0 0)) (cddr statement) k throw states))))
        (eval-statement (cdr statement) states return continue next break throw))))
@@ -154,7 +150,6 @@
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((eq? (car expression) 'dot)
          (dot-operation (cadr expression) (caddr expression) state return throw))
-        ; this
         ((eq? expression 'this) (car state))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
@@ -181,6 +176,7 @@
 (define operator car)
 (define leftoperand cadr)
 (define rightoperand caddr)
+; ------------------------------------------------------------
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
@@ -190,30 +186,29 @@
 ; ------------------------------------------------------------
 
 ; class-extension
-; This method is called if the class that is being defined extends another class, as the methods and parameters of that class are needed
-; for the closure of this one
+; This method is called if the class that is being defined extends another class, as the methods and parameters of that class are needed for the closure of this one
 (define class-extension
   (lambda (extension state return throw)
     (cond
       ((null? extension) state)
       (else (lookup-var (cadr extension) state 0 0)))))
 
-; may need to take in class as lamba variable here as well 
-
 ; dot-operation
-; helper function to evaluate the operation
+;  helper function to evaluate the dot operation handled in eval expressions
+;  also handles when dot operations are done with this and super
 (define dot-operation
   (lambda (object method state return throw)
     (cond
       ((procedure? object) (object method))
       ((eq? object 'this) (dot-lookup method (car state) state))
+      ((eq? object 'super) (dot-lookup method (cdr state) state))
       ((pair? object) (cdr (dot-lookup method object state)))
       ((and (symbol? object) (symbol? method)) (eval-expressions method return (eval-expressions object return state throw) throw))
       (else (error "No object")))))
                             
 ; dot-lookup
-; helper lookup function for checking if method is within object parameters
-; mirrors general structure of main-function-lookup to use lookup-function as a lookup helper
+;  helper lookup function for checking if method is within object parameters
+;  mirrors general structure of main-function-lookup to use lookup-function as a lookup helper
 (define dot-lookup
   (lambda (method object state)
     (cond
@@ -230,43 +225,42 @@
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
 
-; call-func holds a new definition here to call functions, given the closure defined
-; The closure defines the formal parameters, the body, and the bindings in scope of the function
-
-
-; Need to add formal_params to the states list along with their 
+; call-func
+;  holds a new definition here to call functions, given the closure defined
+;  the closure defines the formal parameters, the body, and the bindings in scope of the function
 (define call-func
   (lambda (formal_params body bindings states return throw)
     (call/cc (lambda (k) (eval-program body (newenvironment states bindings return throw) k '() '() '() throw)))))
 
-; newenvironment should create a new environment for the function to act upon based on the bindings in scope
+; newenvironment
+; creates a new environment for the function to act upon based on the bindings in scope
 (define newenvironment
   (lambda (states bindings return throw)
-    ; add this in here to mark environment?
     (call/cc (lambda (k) (eval_bindings (new-layer states) bindings '() k throw states)))))
 
-; eval_bindings identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
-;actual-params defined here
+; eval_bindings
+; identifies the formal parameters passed to the function, evaluates the actual parameters given, and binds them
 (define eval_bindings
   (lambda (function-closure environment actual-params return throw states)
     (cond
       ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
       ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer (cons (car states) environment)) return '() '() '() throw))
-      ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
-      ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
       (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params '() return (new-layer states) throw) k '() '() '() throw)))))))
 
+; helper definition set for formal parameters
 (define extract-function cadr)
 (define formal-params car)
 
-; set-bindings: takes an input list of formal parameters for a function, and binds variables in the environment of that function
+; set-bindings
+; takes an input list of formal parameters for a function, and binds variables in the environment of that function
 (define set-bindings
   (lambda (formal-params actual-params actual-values return environment throw)
     (cond
       ((null? actual-params) (cons (cons (cons formal-params (caar environment)) (cons (reverse actual-values) (cdr (cdr (car environment))))) (cdr environment)))
       (else (set-bindings formal-params (cdr actual-params)
                                                                    (cons (lookup-var (car actual-params) environment 0 0) actual-values) return environment throw)))))
-
+; reverse
+; simple helper implemented to reverse a list
 (define reverse
   (lambda (lst)
   (if (null? lst)                    
@@ -274,24 +268,28 @@
       (append (reverse (cdr lst)) 
               (list (car lst)))))) 
 
-; variable-pair: Helper function, gives a simple variable definition to be passed to declare-var in set-bindings
+; variable-pair
+; helper function, gives a simple variable definition to be passed to declare-var in set-bindings
 (define variable-pair
   (lambda (var-name value return environment throw)
     (cons 'var (cons var-name (cons (eval-expressions value return environment throw) '())))))
 
-; main-function to take in main function
-;(lookup-var expression state 0 0)
+; main-function
+; takes in main function which evaluates class/function commands
 (define main-function
   (lambda (environment main-func throw)
     (cond
       ((null? main-func) error "No main function")
       (else (call/cc (lambda (k) (eval_bindings main-func (car (cdr (car main-func))) '() k throw environment)))))))
 
+; main-function-lookup
+; helper function that helps to locate main within code
 (define main-function-lookup
   (lambda (main-class environment)
     (lookup-var 'main (lookup-var main-class environment 0 0) 0 0)))
 
-; atom helper function since atom? got used in the outer M_state
+; atom
+; helper function to assess if x is an atom
 (define atom?
   (lambda (x)
     (not (pair? x))))
@@ -418,12 +416,7 @@
 (define lookup-var
   (lambda (var states layer index)
     (cond
-      ; another way of structuring could be to take in a parent class variable and do nested lookup var
-      ; lookup var for var and then lookup class state instead of doing state find
-      ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
-                                     ; change to state find
-                                     (lookup-var var (cdr states) (+ layer 1) index)
-                                     (lookup-var var (caddr (car states)) 0 0 )))))
+      ((eq? var 'super) (lookup-super states layer index))
       ((eq? var 'this) (car states))
       ((eq? 'dot (car var)) (eval-expressions var '() states '()))
       ((not (eq? -1 (state-find var states 0))) (lookup-var-helper states (state-find var states 0)))
@@ -442,6 +435,13 @@
     (if (zero? index)
         (car lst)
         (lookup-layer (cdr lst) (- index 1)))))
+
+(define lookup-super
+  (lambda (states layer index)
+    (cond
+      ((null? states) -1)
+      ((eq? -1 (state-find 'super states 0)) (lookup-super (cdr states) (+ layer 1) index))
+      (else (lookup-var-helper states (state-find 'super states 0))))))
 
 ; ------------------------------------------------------------
 
@@ -538,11 +538,7 @@
 (define declare-var
   (lambda (statement return states throw)
     (cond ((null? (cadr statement)) (error "Error in var statement!"))
-          ; stores the closure of the class (includes the super class if it exists and all functions/instance methods inside that class), which corresponds to the name of the class
-          ; or
-          ; stores the closure of the function
           ((or (eq? (car statement) 'function) (eq? (car statement) 'class)) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
-          ; should look up the class that it references, and assign it a copy of the functions of that class
           ((and (list? (caddr statement)) (eq? (caaddr statement) 'new)) (init-assign (cadr statement) (lookup-var (cadr (class-lookup statement)) states 0 0) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           (else
            (if (not (null? (cddr statement)))
@@ -568,8 +564,6 @@
     (if (null? (cdr expression))
         #f
         #t)))
-
-; new function to handle class syntax including new, dot, etc.
 
 ; ------------------------------------------------------------
 ; ------------------------------------------------------------
