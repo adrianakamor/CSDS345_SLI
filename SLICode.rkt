@@ -33,7 +33,7 @@
 ;  essentially, it will be treated the same as any other variable 'x' or 'y'
 ;  at the end of the syntax tree, the return value will be called from the state list and outputted
 ;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
-;  (formatted as ((x y...)(5 7...))
+;  (formatted as ((x y...)(5 7...))L
 
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
@@ -61,6 +61,7 @@
    (lambda (syntax-tree states main-class return continue next break throw)
      (cond
        ((null? syntax-tree) (main-function (main-function-lookup main-class states) states throw))
+       ((eq? (car (car syntax-tree)) 'var) (eval-function (cdr syntax-tree) (declare-var (car syntax-tree) return states throw) return continue next break throw))
        ((eq? (caar syntax-tree) 'class) (eval-class (cdr syntax-tree) (declare-var (create-closure (car syntax-tree) states) return states throw) main-class return continue next break throw))
        (else (eval-class (cdr syntax-tree) states main-class return continue next break throw)))))
 
@@ -284,11 +285,11 @@
   (lambda (environment main-func throw)
     (cond
       ((null? main-func) error "No main function")
-      (else (call/cc (lambda (k) (eval_bindings main-func (caddr main-func) '() k throw environment)))))))
+      (else (call/cc (lambda (k) (eval_bindings main-func (car (cdr (car main-func))) '() k throw environment)))))))
 
 (define main-function-lookup
   (lambda (main-class environment)
-    ((lookup-var 'main (lookup-var main-class environment 0 0) 0 0))))
+    (lookup-var 'main (lookup-var main-class environment 0 0) 0 0)))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
@@ -422,9 +423,8 @@
                                      (lookup-var var (cdr states) (+ layer 1) index)
                                      (lookup-var var (caddr (car states)) 0 0 )))))
       ((eq? var 'this) (car states))
-      ((eq? -1 (state-find var states 0))
-       (error "Variable requested not found in the state!")
-        (lookup-var-helper states (state-find var states 0))))))
+      ((eq? -1 (state-find var states 0)) (error "Variable requested not found in the state!"))
+      (else (lookup-var-helper states (state-find var states 0))))))
     ; old lookup-var statements
     ; (if (eq? -1 (state-find var states 0))
         ; (error "Variable requested not found in the state!")
