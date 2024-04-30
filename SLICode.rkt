@@ -24,7 +24,7 @@
     ;the program is initialized with a return statement
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
-    (call/cc (lambda (k) (eval-class (parser filename) '((() ())) main-class k null null null null)))))
+    (call/cc (lambda (k) (eval-class (parser filename) '((() ())) (string->symbol main-class) k null null null null)))))
 
 
 ; Parse Function
@@ -33,8 +33,7 @@
 ;  essentially, it will be treated the same as any other variable 'x' or 'y'
 ;  at the end of the syntax tree, the return value will be called from the state list and outputted
 ;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
-;  (formatted as ((x y...)(5 7...))L
-
+;  (formatted as ((x y...)(5 7...))
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
@@ -87,8 +86,11 @@
     ; do we want to create a losure within a closure, aka keep the function closure creation but also
     ; have a condition where if 'class then enclose?
     ; closure contains 'class, name of the class either (extends *parent class*) or nothing, and all of the functions inside of it
+      ; something along the lines of:
+      ; lambda (parent (if (eq? (caddr function-def) 'extends) ("function definition" '()))) and replace "function definition with appropriate car/cdr call
     ;((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
-      ((eq? (car function-def) 'class) (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '())))))
+      ((eq? (car function-def) 'class)
+       (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '()))))) ; change '() to take in the parent class mentioned in the comments above?
       (else (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))))
 
 ; append
@@ -117,6 +119,7 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
+      ; think we can get rid of these commments and don't need to implement them
       ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
       ; do we also need to cover dot in statements?
       ; ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
@@ -148,14 +151,11 @@
         ((boolean? expression)       expression)
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
-        ; implementing expression logic for dot operator
-        ; goal is to check is variable state is within the requested object using helper methods 
-        ; also gets called in eval statement for when a dot operation statement is being evaluated
+        ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((eq? (car expression) 'dot)
          (dot-operation (cadr expression) (caddr expression) state return throw))
         ; this
         ((eq? expression 'this) (car state))
-        ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '-)
@@ -174,7 +174,6 @@
         ((eq? (operator expression) '&&)  (and (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
-        ; evaluate funcall expression, #4 on assignment
         ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
         (else (error "Type Unknown")))))
 
@@ -209,6 +208,7 @@
       ((procedure? object) (object method))
       ((eq? object 'this) (dot-lookup method (car state) state))
       ((pair? object) (cdr (dot-lookup method object state)))
+      ((and (symbol? object) (symbol? method)) (eval-expressions method return (eval-expressions object return state throw) throw))
       (else (error "No object")))))
                             
 ; dot-lookup
@@ -251,7 +251,7 @@
   (lambda (function-closure environment actual-params return throw states)
     (cond
       ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
-      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer environment) return '() '() '() throw))
+      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer (cons (car states) environment)) return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
       (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params '() return (new-layer states) throw) k '() '() '() throw)))))))
@@ -418,17 +418,16 @@
 (define lookup-var
   (lambda (var states layer index)
     (cond
+      ; another way of structuring could be to take in a parent class variable and do nested lookup var
+      ; lookup var for var and then lookup class state instead of doing state find
       ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
                                      ; change to state find
                                      (lookup-var var (cdr states) (+ layer 1) index)
                                      (lookup-var var (caddr (car states)) 0 0 )))))
       ((eq? var 'this) (car states))
-      ((eq? -1 (state-find var states 0)) (error "Variable requested not found in the state!"))
-      (else (lookup-var-helper states (state-find var states 0))))))
-    ; old lookup-var statements
-    ; (if (eq? -1 (state-find var states 0))
-        ; (error "Variable requested not found in the state!")
-        ; (lookup-var-helper states (state-find var states 0)))))
+      ((eq? 'dot (car var)) (eval-expressions var '() states '()))
+      ((not (eq? -1 (state-find var states 0))) (lookup-var-helper states (state-find var states 0)))
+      (else (error "Variable requested not found in the state!")))))
 
 ; lookup-var-helper traverses through all layers of the state, outsourcing to lookup-layer for each individual layer
 (define lookup-var-helper
@@ -544,11 +543,13 @@
           ; stores the closure of the function
           ((or (eq? (car statement) 'function) (eq? (car statement) 'class)) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           ; should look up the class that it references, and assign it a copy of the functions of that class
-          ((eq? (car statement) 'new))
+          ((and (list? (caddr statement)) (eq? (caaddr statement) 'new)) (init-assign (cadr statement) (lookup-var (cadr (class-lookup statement)) states 0 0) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw)
                (cons (create-pair (cadr statement) (car states) '()) (cdr states)))))))
+
+(define class-lookup caddr)
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
 ;  checks to make sure that the variable has been declared; if not (idk what it'll do lol)
