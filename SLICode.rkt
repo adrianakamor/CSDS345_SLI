@@ -24,7 +24,7 @@
     ;the program is initialized with a return statement
     ; we need to change this somehow to take into account the idea of functions instead of the the program
     ; being initialized with return or have it so that we use eval program instead
-    (call/cc (lambda (k) (eval-class (parser filename) '((() ())) main-class k null null null null)))))
+    (call/cc (lambda (k) (eval-class (parser filename) '((() ())) (string->symbol main-class) k null null null null)))))
 
 
 ; Parse Function
@@ -34,7 +34,6 @@
 ;  at the end of the syntax tree, the return value will be called from the state list and outputted
 ;  essentially how the states will be handled is that each statement (like var and while) will have the value it returns be the list of states
 ;  (formatted as ((x y...)(5 7...))
-
 (define eval-program
   (lambda (syntax-tree states return continue next break throw)
     (cond
@@ -60,7 +59,7 @@
  (define eval-class
    (lambda (syntax-tree states main-class return continue next break throw)
      (cond
-       ((null? syntax-tree) (main-function (main-function-lookup main-class states) states throw))
+       ((null? syntax-tree) (main-function states (main-function-lookup main-class states) throw))
        ((eq? (caar syntax-tree) 'class) (eval-class (cdr syntax-tree) (declare-var (create-closure (car syntax-tree) states) return states throw) main-class return continue next break throw))
        (else (eval-class (cdr syntax-tree) states main-class return continue next break throw)))))
 
@@ -150,11 +149,11 @@
         ; implementing expression logic for dot operator
         ; goal is to check is variable state is within the requested object using helper methods 
         ; also gets called in eval statement for when a dot operation statement is being evaluated
+        ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((eq? (car expression) 'dot)
          (dot-operation (cadr expression) (caddr expression) state return throw))
         ; this
         ((eq? expression 'this) (car state))
-        ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((list? (operator expression)) expression)
         ((eq? (operator expression) '+)   (+ (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '-)
@@ -208,6 +207,7 @@
       ((procedure? object) (object method))
       ((eq? object 'this) (dot-lookup method (car state) state))
       ((pair? object) (cdr (dot-lookup method object state)))
+      ((and (symbol? object) (symbol? method)) (eval-expressions method return (eval-expressions object return state throw) throw))
       (else (error "No object")))))
                             
 ; dot-lookup
@@ -250,7 +250,7 @@
   (lambda (function-closure environment actual-params return throw states)
     (cond
       ((xor (null? (formal-params function-closure)) (null? actual-params)) (error "Mismatching number of parameters!"))
-      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer environment) return '() '() '() throw))
+      ((null? (formal-params function-closure)) (eval-program (extract-function function-closure) (new-layer (cons (car states) environment)) return '() '() '() throw))
       ; cadr bindings: func name, caddr bindings: func parameters, cdddr bindings: func body
       ;(else (declare-var (cons (cadr (bindings function-closure)) (cons (cons (cadr (bindings function-closure)) (caddr (bindings function-closure))) states)) states throw)))))
       (else (call/cc (lambda (k) (eval-program (extract-function function-closure) (set-bindings (formal-params function-closure) actual-params '() return (new-layer states) throw) k '() '() '() throw)))))))
@@ -288,7 +288,7 @@
 
 (define main-function-lookup
   (lambda (main-class environment)
-    ((lookup-var 'main (lookup-var main-class environment 0 0) 0 0))))
+    (lookup-var 'main (lookup-var main-class environment 0 0) 0 0)))
 
 ; atom helper function since atom? got used in the outer M_state
 (define atom?
@@ -422,9 +422,9 @@
                                      (lookup-var var (cdr states) (+ layer 1) index)
                                      (lookup-var var (caddr (car states)) 0 0 )))))
       ((eq? var 'this) (car states))
-      ((eq? -1 (state-find var states 0))
-       (error "Variable requested not found in the state!")
-        (lookup-var-helper states (state-find var states 0))))))
+      ((eq? 'dot (car var)) (eval-expressions var '() states '()))
+      ((not (eq? -1 (state-find var states 0))) (lookup-var-helper states (state-find var states 0)))
+      (else (error "Variable requested not found in the state!")))))
     ; old lookup-var statements
     ; (if (eq? -1 (state-find var states 0))
         ; (error "Variable requested not found in the state!")
@@ -544,11 +544,13 @@
           ; stores the closure of the function
           ((or (eq? (car statement) 'function) (eq? (car statement) 'class)) (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           ; should look up the class that it references, and assign it a copy of the functions of that class
-          ((eq? (car statement) 'new))
+          ((and (list? (caddr statement)) (eq? (caaddr statement) 'new)) (init-assign (cadr statement) (lookup-var (cadr (class-lookup statement)) states 0 0) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw))
           (else
            (if (not (null? (cddr statement)))
                (init-assign (cadr statement) (cddr statement) return (cons (create-pair (cadr statement) (car states) '()) (cdr states)) throw)
                (cons (create-pair (cadr statement) (car states) '()) (cdr states)))))))
+
+(define class-lookup caddr)
         
 ; init-assign: accepts the variable in question, an expression, and the current list of states ((...)(...))
 ;  checks to make sure that the variable has been declared; if not (idk what it'll do lol)
