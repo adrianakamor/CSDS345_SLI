@@ -85,8 +85,11 @@
     ; do we want to create a losure within a closure, aka keep the function closure creation but also
     ; have a condition where if 'class then enclose?
     ; closure contains 'class, name of the class either (extends *parent class*) or nothing, and all of the functions inside of it
+      ; something along the lines of:
+      ; lambda (parent (if (eq? (caddr function-def) 'extends) ("function definition" '()))) and replace "function definition with appropriate car/cdr call
     ;((eq? (cadr function-def) 'super) (lookup-var (cadr function-def) (lookup-var 'super (caddr state) null null) null null))
-      ((eq? (car function-def) 'class) (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '())))))
+      ((eq? (car function-def) 'class)
+       (cons 'class (cons (cadr function-def) (append (call/cc (lambda (k) (eval-function (cadddr function-def) (class-extension (caddr function-def) state null null) k null null null null))) (cons state '()))))) ; change '() to take in the parent class mentioned in the comments above?
       (else (cons 'function (cons (cadr function-def) (append (cddr function-def) (cons state '()))))))))
 
 ; append
@@ -115,6 +118,7 @@
       ((eq? (car statement) 'throw) (throw-helper (cadr statement) states throw))
       ((eq? (car statement) 'try) (try-helper (try-body statement) (catch-block statement) (finally-block statement) states return continue next break throw))
       ((eq? (car statement) 'function) (next (declare-var (create-closure statement states) return states throw)))
+      ; think we can get rid of these commments and don't need to implement them
       ; ((eq? (car statement) 'class) (next (declare-var (create-closure statement states) return states throw)))
       ; do we also need to cover dot in statements?
       ; ((eq? (car statement) 'dot) (eval-expressions (cadr statement) return states throw))
@@ -146,9 +150,6 @@
         ((boolean? expression)       expression)
         ((eq? expression 'true)  #t)
         ((eq? expression 'false) #f)
-        ; implementing expression logic for dot operator
-        ; goal is to check is variable state is within the requested object using helper methods 
-        ; also gets called in eval statement for when a dot operation statement is being evaluated
         ((symbol? expression)        (eval-expressions (lookup-var expression state 0 0) return state throw))
         ((eq? (car expression) 'dot)
          (dot-operation (cadr expression) (caddr expression) state return throw))
@@ -172,7 +173,6 @@
         ((eq? (operator expression) '&&)  (and (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '||)  (or (eval-expressions (leftoperand expression) return state throw) (eval-expressions (rightoperand expression) return state throw)))
         ((eq? (operator expression) '!)   (not (eval-expressions (leftoperand expression) return state throw)))
-        ; evaluate funcall expression, #4 on assignment
         ((eq? (car expression) 'funcall) (eval_bindings (lookup-var (cadr expression) state 0 0) (caddr (lookup-var (cadr expression) state 0 0)) (cddr expression) return throw state))
         (else (error "Type Unknown")))))
 
@@ -417,6 +417,8 @@
 (define lookup-var
   (lambda (var states layer index)
     (cond
+      ; another way of structuring could be to take in a parent class variable and do nested lookup var
+      ; lookup var for var and then lookup class state instead of doing state find
       ((eq? var 'super) ((eq?  -1 (if (null? (lookup-var var (caddr (car states)) 0 0))
                                      ; change to state find
                                      (lookup-var var (cdr states) (+ layer 1) index)
@@ -425,10 +427,6 @@
       ((eq? 'dot (car var)) (eval-expressions var '() states '()))
       ((not (eq? -1 (state-find var states 0))) (lookup-var-helper states (state-find var states 0)))
       (else (error "Variable requested not found in the state!")))))
-    ; old lookup-var statements
-    ; (if (eq? -1 (state-find var states 0))
-        ; (error "Variable requested not found in the state!")
-        ; (lookup-var-helper states (state-find var states 0)))))
 
 ; lookup-var-helper traverses through all layers of the state, outsourcing to lookup-layer for each individual layer
 (define lookup-var-helper
